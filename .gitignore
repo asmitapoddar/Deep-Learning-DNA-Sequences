@@ -5,6 +5,5 @@
 *.gtf
 *.fa.gz
 
-Data/
 discarded/
 venv/
