@@ -1,0 +1,8 @@
+cassette exons
+
+if more than one transcript - find cassette exons
+for every gene, get exon boundaries
+    if only on transcript -
+        if exon start coincides with gene start, discard the exon
+        if exon end coincides with gene end, discard the exon
+    if many transcripts, choose transcript with longest exon
