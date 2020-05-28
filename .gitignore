@@ -1,0 +1,10 @@
+.DS_Store
+.ipynb_checkpoints
+.idea/
+
+*.gtf
+*.fa.gz
+
+Data/
+discarded/
+venv/

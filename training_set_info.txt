@@ -1,0 +1,12 @@
+Chromosome 21
+No. of genes: 875
+
+Exon start      Exon end        No. samples     Max. seq len    Min. seq len
+-500            +30             190                 608821          716
+-300            +30             198                 608621          516
+-100            +30             209                 694052          316
+-50             +30             219                 694002          266
+0               0               254                 693922          186         #621 exon boundaries coincide with gene boundaries
+-500            +10             195                 608801          696
+-300            +10             204                 608601          496
+-100            +10             215                 694032          296
