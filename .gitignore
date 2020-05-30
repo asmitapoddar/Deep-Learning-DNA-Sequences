@@ -2,8 +2,10 @@
 .ipynb_checkpoints
 .idea/
 
+# Big Data files
 *.gtf
 *.fa.gz
 
+# Don't track content of these folders
 discarded/
 venv/
