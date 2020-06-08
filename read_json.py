@@ -178,8 +178,10 @@ def manipulate(dataset, exon_start_minus_offset, exon_start_plus_offset, exon_en
     Function to
     :param dataset: json file
                 JSON file containing chromosome information
-    :param exon_start_offset: int
-    :param exon_end_offset: int
+    :param exon_start_minus_offset: int
+    :param exon_start_plus_offset: int
+    :param exon_end_minus_offset: int
+    :param exon_end_plus_offset: int
     :return: None
     '''
     ## Takes the parsed JSON dataset
@@ -191,12 +193,12 @@ def manipulate(dataset, exon_start_minus_offset, exon_start_plus_offset, exon_en
     end_training_y = []
 
     #print(len(data)) #875
-    nonoverlapping_gene_intervals = remove_overlapping_genes(data[0:3])
+    nonoverlapping_gene_intervals = remove_overlapping_genes(data)
     nonoverlapping_gene_intervals = create_intervals(nonoverlapping_gene_intervals, 'none')
     print(len(nonoverlapping_gene_intervals), nonoverlapping_gene_intervals)  #821
 
     # Iterating through all genes of the chromosome
-    for gene in data[0:3]:
+    for gene in data:
         print(gene['gene_id'])
         gene_sequence = get_gene_seq(gene['gene_sequence'], gene['gene_strand'])
         gene_bounds = gene['gene_bounds']
@@ -230,45 +232,33 @@ def manipulate(dataset, exon_start_minus_offset, exon_start_plus_offset, exon_en
             exon_end_list = sorted(exon_end_list)
             exon_intervals_list = sorted(exon_intervals_list)
 
-            print('Exons interval set', exon_intervals_list)
-            print('Exon start set', exon_start_list)
-            print('Exon end set', exon_end_list)
+            #print('Exons interval set', exon_intervals_list)
+            #print('Exon start set', exon_start_list)
+            #print('Exon end set', exon_end_list)
 
             exon_start_set_final = get_final_exon_intervals(exon_start_list, exon_intervals_list, nonoverlapping_gene_intervals, 'start')
-            print('final exon start set', exon_start_set_final)
+            #print('final exon start set', exon_start_set_final)
             exon_end_set_final = get_final_exon_intervals(exon_end_list, exon_intervals_list, nonoverlapping_gene_intervals, 'end')
-            print('final exon end set', exon_end_set_final)
+            #print('final exon end set', exon_end_set_final)
 
             sx, sy = create_training_set(exon_start_set_final, gene)
             ex, ey = create_training_set(exon_end_set_final, gene)
-            start_training_x.append(sx)
-            start_training_y.append(sy)
-            end_training_x.append(ex)
-            end_training_y.append(ey)
+            start_training_x.extend(sx)
+            start_training_y.extend(sy)
+            end_training_x.extend(ex)
+            end_training_y.extend(ey)
 
 
     print(start_training_x, start_training_y)
     print(end_training_x, end_training_y)
-    print('No. of samples in training set:', len(start_training_y), len(end_training_y))
+    print('No. of samples in start and end training set:', len(start_training_y), ",", len(end_training_y))
     '''
-    
-    print('No. of samples in training set:', len(training_set_y))
-    print(sorted(set_start_pos))
-    print(sorted(set_end_pos))
-
     df = pd.DataFrame()
     df['x'] = training_set_x
     df['y'] = training_set_y
     #df.to_csv(data_path+'chr21_training_data.csv', index = False)
     length_seq = [len(i) for i in training_set_x]
-    #print(training_set_x)
-    
-    print(training_set_y)
-    print(length_seq)
-    print(max(length_seq))
-    print(min(length_seq))
     '''
-
     return
 
 if __name__ == "__main__":
@@ -277,4 +267,4 @@ if __name__ == "__main__":
     with open(file, "r") as f:
         dataset = json.load(f)
 
-    manipulate(dataset, 300, 30, 120, 30)
+    manipulate(dataset, 300, 30, 30, 300)
