@@ -8,28 +8,48 @@ from Bio.Seq import Seq
 from Bio.Alphabet import generic_dna
 from heapq import merge
 import portion as P
+import random
 
 curr_dir_path = str(pathlib.Path().absolute())
 data_path = curr_dir_path + "/Data/"
+MAX_LENGTH = 350
+NO_OFFSETS_PER_EXON = 5
+OFFSET_RANGE = [60, 340]
 
 def create_intervals(data, side, start=0, end=0):
     '''
     Function to get a list of lists (list of ranges) and return a list of intervals
     :param data: list of lists (list of ranges)
-    :param side:
+    :param side: which side (exon_start/ exon_end)
     :param start: offset for getting (site-start) region
     :param end: offset for getting (site+end) region
-    :return: list of intervals
+    :return: 2 lists
+            res: list of intervals containing the sequence
+            exon_boundary: list of int containing the exon_boundary points
     '''
     res = []
+    random.seed(1) # seed random number generator #todo: donot seed other each of the 5 runs will always produce same random nos.
+    exon_boundary = []
+
     for exon in data:
-        if side == 'start':
-            res.append(P.closed(exon[0] - start, exon[0] + end))
-        if side == 'end':
-            res.append(P.closed(exon[1] - start, exon[1] + end))
         if side == 'none':
             res.append(P.closed(exon[0], exon[1]))
-    return res
+
+        else:
+            # generate 5 random numbers for exon boundary offset.
+            for _ in range(NO_OFFSETS_PER_EXON):
+                #range of offset into the intron is [60,340] (min intron length = 60, min exons length= 10 for each seq created)
+                intron_offset = random.randint(OFFSET_RANGE[0], OFFSET_RANGE[1])
+                exon_offset = MAX_LENGTH-intron_offset
+
+                if side == 'start':
+                    res.append(P.closed(exon[0] - intron_offset, exon[0] + exon_offset))
+                if side == 'end':
+                    res.append(P.closed(exon[1] - exon_offset, exon[1] + intron_offset))
+
+                exon_boundary.append(intron_offset+1)  # 1-indexed (the start of seq is at index 1)
+
+    return res, exon_boundary
 
 def get_gene_seq(gene_sequence, strand):
     '''
@@ -102,32 +122,43 @@ def remove_overlapping_genes(data):
 
     return out
 
-def get_final_exon_intervals(exon_side_intervals, exon_intervals_list, nonoverlapping_gene_intervals, side):
+def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, exon_intervals_list,
+                             nonoverlapping_gene_intervals, side):
     '''
     Function to get final exon start and end lists for a gene
-    :param exon_side_intervals:
-    :param exon_intervals_list:
-    :param nonoverlapping_gene_intervals:
-    :param side:
-    :return:
+    :param exon_boundary_intervals: list of intervals around the boundary for the given :param side (exon_start/ exon_end)
+    :param exon_boundaries: list containing the exon boundaries
+    :param exon_intervals_list: list of exon intervals
+    :param nonoverlapping_gene_intervals: list of non-overlapping gene intervals
+    :param side:  which side (exon_start/ exon_end)
+    :return: 2 lists
+            exon_boundary_intervals_final: list of intervals
+            exon_boundary_final: list of int
     '''
-    exon_side_intervals_final = []
-    for (exon_side_interval, i) in zip(exon_side_intervals, range(0, len(exon_intervals_list))):
+    exon_boundary_intervals_final = []
+    exon_boundary_final = []
+    print('exon boundary intervals: ', len(exon_boundary_intervals))
+    print('len(exon_intervals_list)', len(exon_intervals_list), exon_intervals_list)
+
+    #i in range(0, len(exon_intervals_list)
+
+    for (exon_boundary_interval, exon_boundary, var) in zip(exon_boundary_intervals, exon_boundaries,
+                                                          range(0,len(exon_boundary_intervals))):
 
         start_overlap_alert = False
         end_overlap_alert = False
-
-        print(i, exon_side_interval, exon_intervals_list[i])
+        i = int(var/NO_OFFSETS_PER_EXON)
+        print('Exon boundary interval: ', i, exon_boundary_interval, exon_boundary, exon_intervals_list[i])
         # Check exon in within gene bounds
         for gene in nonoverlapping_gene_intervals:
-            if exon_side_interval in gene:
+            if exon_boundary_interval in gene:
 
                 print('in gene')
                 # Check exon site interval area does not overlap with other (5) exons on the left
                 for j in range(i - 5, i):
                     if (j < 0):
                         continue
-                    if not exon_side_interval > exon_intervals_list[j]:
+                    if not exon_boundary_interval > exon_intervals_list[j]:
                         print('start overlap checked', exon_intervals_list[j])
                         start_overlap_alert = True
                         break
@@ -135,28 +166,32 @@ def get_final_exon_intervals(exon_side_intervals, exon_intervals_list, nonoverla
                 for j in range(i + 1, i + 6):
                     if (j >= len(exon_intervals_list)):
                         continue
-                    if not exon_side_interval < exon_side_intervals[j]:
+                    if not exon_boundary_interval < exon_intervals_list[j]:
                         end_overlap_alert = True
                         print('exon end overlap checked', end_overlap_alert)
                         break
 
                 "Check exon site interval area does not overlap with the same exon's other side"
                 #For start sites, exon start site interval should not coincide with the exon end
-                if (side=='start' and exon_side_interval < exon_intervals_list[i].upper \
+                if (side=='start' and exon_boundary_interval < exon_intervals_list[i].upper \
                         and not start_overlap_alert and not end_overlap_alert):
-                    exon_side_intervals_final.append(exon_side_interval)
+                    exon_boundary_intervals_final.append(exon_boundary_interval)
+                    exon_boundary_final.append(exon_boundary)
+                    print('final set', exon_boundary_interval, exon_boundary)
                 # For end sites, exon end site interval should not coincide with the exon start
-                if (side=='end' and exon_side_interval > exon_intervals_list[i].lower \
+                if (side=='end' and exon_boundary_interval > exon_intervals_list[i].lower \
                         and not start_overlap_alert and not end_overlap_alert):
-                    exon_side_intervals_final.append(exon_side_interval)
+                    exon_boundary_intervals_final.append(exon_boundary_interval)
+                    exon_boundary_final.append(exon_boundary)
                 break
 
-    return exon_side_intervals_final
+    return exon_boundary_intervals_final, exon_boundary_final
 
-def create_training_set(exon_intervals_final, gene):
+def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene):
     '''
     Function to create training set [start intervals/ end intervals] (positive samples)
-    :param exon_intervals_final: list of intervals
+    :param exon_boundary_intervals_final: list of intervals
+    :param exon_boundary_final: list of int containing the exon boundaries
     :param gene: gene information (JSON)
     :return: list
     '''
@@ -164,12 +199,15 @@ def create_training_set(exon_intervals_final, gene):
     training_set_y = []
     gene_sequence = gene['gene_sequence']
     gene_bounds = gene['gene_bounds']
+    l = [0] * 10
+    l.append(1)
+    l.extend([0] * 9)
 
-    for exon_interval in exon_intervals_final:
+    for (exon_interval, exon_boundary) in zip(exon_boundary_intervals_final, exon_boundary_final):
         training_set_x.append(
             get_gene_seq(gene_sequence[exon_interval.lower - gene_bounds[0]:exon_interval.upper - gene_bounds[0]],
                          gene['gene_strand']))
-        training_set_y.append([exon_interval.lower - gene_bounds[0], exon_interval.upper - gene_bounds[0]])
+        training_set_y.append(exon_boundary)
 
     return training_set_x, training_set_y
 
@@ -194,11 +232,11 @@ def manipulate(dataset, exon_start_minus_offset, exon_start_plus_offset, exon_en
 
     #print(len(data)) #875
     nonoverlapping_gene_intervals = remove_overlapping_genes(data)
-    nonoverlapping_gene_intervals = create_intervals(nonoverlapping_gene_intervals, 'none')
-    print(len(nonoverlapping_gene_intervals), nonoverlapping_gene_intervals)  #821
+    nonoverlapping_gene_intervals, _ = create_intervals(nonoverlapping_gene_intervals, 'none')
+    print('non-overlapping genes ', len(nonoverlapping_gene_intervals), nonoverlapping_gene_intervals)  #821
 
     # Iterating through all genes of the chromosome
-    for gene in data:
+    for gene in data[0:3]:
         print(gene['gene_id'])
         gene_sequence = get_gene_seq(gene['gene_sequence'], gene['gene_strand'])
         gene_bounds = gene['gene_bounds']
@@ -224,25 +262,27 @@ def manipulate(dataset, exon_start_minus_offset, exon_start_plus_offset, exon_en
             nonoverlapping_exon_ranges_for_gene = get_nonoverlapping_exon_bounds(exons_ranges_in_transcript)
 
             #get exon start & end intervals - with offsets: list of intervals
-            exon_start_list = create_intervals(nonoverlapping_exon_ranges_for_gene, 'start', exon_start_minus_offset, exon_start_plus_offset)
-            exon_end_list = create_intervals(nonoverlapping_exon_ranges_for_gene, 'end', exon_end_minus_offset, exon_end_plus_offset)
-            exon_intervals_list = create_intervals(nonoverlapping_exon_ranges_for_gene, 'none')
+            exon_start_list, exon_start_boundaries = create_intervals(nonoverlapping_exon_ranges_for_gene, 'start', exon_start_minus_offset, exon_start_plus_offset)
+            exon_end_list, exon_end_boundaries = create_intervals(nonoverlapping_exon_ranges_for_gene, 'end', exon_end_minus_offset, exon_end_plus_offset)
+            exon_intervals_list, _ = create_intervals(nonoverlapping_exon_ranges_for_gene, 'none')
 
             exon_start_list = sorted(exon_start_list)
             exon_end_list = sorted(exon_end_list)
             exon_intervals_list = sorted(exon_intervals_list)
 
-            #print('Exons interval set', exon_intervals_list)
-            #print('Exon start set', exon_start_list)
+            print('Exons interval set', exon_intervals_list)
+            print('Exon start list', exon_start_list)
             #print('Exon end set', exon_end_list)
 
-            exon_start_set_final = get_final_exon_intervals(exon_start_list, exon_intervals_list, nonoverlapping_gene_intervals, 'start')
-            #print('final exon start set', exon_start_set_final)
-            exon_end_set_final = get_final_exon_intervals(exon_end_list, exon_intervals_list, nonoverlapping_gene_intervals, 'end')
+            exon_start_set_final, exon_start_boundary_final = get_final_exon_intervals(exon_start_list, exon_start_boundaries,
+                                                            exon_intervals_list, nonoverlapping_gene_intervals, 'start')
+            print('final exon start set', exon_start_set_final, exon_start_boundary_final)
+            exon_end_set_final, exon_end_boundary_final = get_final_exon_intervals(exon_end_list, exon_end_boundaries,
+                                                          exon_intervals_list, nonoverlapping_gene_intervals, 'end')
             #print('final exon end set', exon_end_set_final)
 
-            sx, sy = create_training_set(exon_start_set_final, gene)
-            ex, ey = create_training_set(exon_end_set_final, gene)
+            sx, sy = create_training_set(exon_start_set_final, exon_start_boundary_final, gene)
+            ex, ey = create_training_set(exon_end_set_final, exon_end_boundary_final, gene)
             start_training_x.extend(sx)
             start_training_y.extend(sy)
             end_training_x.extend(ex)
@@ -250,8 +290,15 @@ def manipulate(dataset, exon_start_minus_offset, exon_start_plus_offset, exon_en
 
 
     print(start_training_x, start_training_y)
-    print(end_training_x, end_training_y)
-    print('No. of samples in start and end training set:', len(start_training_y), ",", len(end_training_y))
+    #print(end_training_x, end_training_y)
+    print('No. of samples in start and end training set:', len(start_training_y)) #, ",", len(end_training_y))
+    with open(data_path+'y_label_start', "w") as label_start_file:
+        label_start_file.write("\n".join(str(item) for item in start_training_y))
+    label_start_file.close()
+    with open(data_path + 'dna_seq_start', "w") as dna_seq_start_file:
+        dna_seq_start_file.write("\n".join(str(item) for item in start_training_x))
+    dna_seq_start_file.close()
+
     '''
     df = pd.DataFrame()
     df['x'] = training_set_x
@@ -267,4 +314,4 @@ if __name__ == "__main__":
     with open(file, "r") as f:
         dataset = json.load(f)
 
-    manipulate(dataset, 300, 30, 30, 300)
+    manipulate(dataset, 10, 10, 30, 300)
