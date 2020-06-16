@@ -1,8 +1,13 @@
 import numpy as np
+import pathlib
+
+curr_dir_path = str(pathlib.Path().absolute())
+data_path = curr_dir_path + "/Data/"
 
 def encode(seq):
-    encoded_seq = np.zeros(1600,int)
-    for j in range(400):
+
+    encoded_seq = np.zeros(len(seq)*4,int)
+    for j in range(len(seq)):
         if seq[j] == 'A' or seq[j] == 'a':
             encoded_seq[j*4] = 1
             encoded_seq[j*4+1] = 0
@@ -39,9 +44,9 @@ def main():
     
     i = 0
  
-    encoded_f = open('encoded_seq', 'w')
+    encoded_f = open(data_path+'encoded_seq', 'w')
                     
-    seq_file = open('dna_seq','r')
+    seq_file=open(data_path+'dna_seq_start').read().splitlines()
     for line in seq_file:
         seq = line
         encoded_seq = encode(seq)
@@ -52,9 +57,6 @@ def main():
 
         i=i+1
         print(i)
-    seq_file.close()
-
-
 
     encoded_f.close()
 
