@@ -4,7 +4,7 @@ import shutil
 import numpy as np
 import pandas as pd
 from models import *
-from train_utils import *
+from metrics import *
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -84,7 +84,7 @@ for i in range(10):
         #print('sample shape ', sample[0].shape, sample[1].shape)
         raw_out = model.forward(sample[0].to(device))
 
-        print(raw_out[0], sample[1])
+        print(raw_out[0].shape, sample[1])
         #print(raw_out[0].shape, sample[1].shape)
         loss = loss_fn(raw_out[0].round(), sample[1].to(device))
         print('Loss: ', loss)
@@ -122,4 +122,4 @@ for i in range(10):
                                                                           avg_rec))
     writer.add_scalar('Accuracy/train', avg_acc, i)
     writer.add_scalar('F1/train', avg_f1, i)
-     '''
+    '''
