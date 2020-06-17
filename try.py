@@ -19,8 +19,8 @@ class SequenceDataset(Dataset):
 
     def __init__(self, data, labels):
 
-        self.data = torch.tensor(data, dtype=torch.float)
-        self.labels = torch.tensor(labels, dtype=torch.float)
+        self.data = torch.from_numpy(data).float()
+        self.labels = torch.tensor(labels).float()
 
     def __len__(self):
         return len(self.data)
@@ -34,7 +34,7 @@ data_path = curr_dir_path + "/Data/"
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-bsize = 1
+bsize = 16
 
 x_train = np.loadtxt(data_path+'encoded_seq')
 no_timesteps = int(len(x_train[0])/4)
@@ -42,20 +42,20 @@ x_train = x_train.reshape(-1,int(len(x_train[0])/4), 4)
 
 y_train = np.loadtxt(data_path+'y_label_start')
 
-trainset = Variable(torch.from_numpy(x_train)).float() #Shape: no.samples X no.timesteps X input_dim
+#trainset = Variable(torch.from_numpy(x_train)).float() #Shape: no.samples X no.timesteps X input_dim
 trainlabels = Variable(torch.from_numpy(y_train))
-trainset = torch.utils.data.Subset(trainset, range(10))
+#trainset = torch.utils.data.Subset(trainset, range(10))
 
-#trainset = SequenceDataset(x_train[0:10], y_train[0:10])
+trainset = SequenceDataset(x_train, y_train)
 #print('Shape trainset', trainset.shape)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=bsize, shuffle=True, num_workers=2)
 
 print(trainloader)
 # model = BasicNN((28*28), 256, 256, 256, -1, 10)
-model = SimpleLSTM(4, 128, 3, no_timesteps)
+model = SimpleLSTM(4, 128, 3, 1)
 print(model)
 model.to(device)
-loss_fn = nn.CrossEntropyLoss()
+loss_fn = nn.MSELoss()
 # optimiser = optim.SGD(model.parameters(), momentum=0.9, lr=0.001)
 optimiser = optim.RMSprop(model.parameters(), lr=0.001)
 
@@ -66,10 +66,10 @@ if os.path.isdir(tb_path):
 writer = tb.SummaryWriter(log_dir=tb_path)
 # writer.add_graph(model, iter(trainloader).next()[0].reshape(bsize, -1))
 sample_data = iter(trainloader).next()
-print(sample_data.shape)
-writer.add_graph(model, sample_data.to(device))
+print(sample_data[0].shape)
+writer.add_graph(model, sample_data[0].to(device))
 
-for i in range(3):
+for i in range(10):
     avg_acc = 0
     avg_f1 = 0
     avg_prec = 0
@@ -81,17 +81,19 @@ for i in range(3):
         print(bnum)
         #         sample[0] = sample[0].reshape(sample[0].shape[0], -1)
 
-        print('sample shape ', sample.shape)
-        raw_out = model.forward(sample.to(device))
-        print(torch.tensor([trainlabels[bnum].long()]))
-        print(raw_out.shape, torch.tensor([trainlabels[bnum].long()]).shape)
-        loss = loss_fn(raw_out,torch.tensor([trainlabels[bnum].long()]).to(device))
+        #print('sample shape ', sample[0].shape, sample[1].shape)
+        raw_out = model.forward(sample[0].to(device))
 
+        print(raw_out[0], sample[1])
+        #print(raw_out[0].shape, sample[1].shape)
+        loss = loss_fn(raw_out[0].round(), sample[1].to(device))
+        print('Loss: ', loss)
         loss.backward()
         optimiser.step()
 
         avg = 'macro'
-        labels = list(range(10))
+        '''
+        labels = int(sample[1])
         #print('raw out', raw_out.detach().clone(), raw_out.detach().clone().shape)
         #print('avg', avg)
         #print('labels', labels)
@@ -117,6 +119,7 @@ for i in range(3):
                                                                             avg_acc,
                                                                             avg_f1,
                                                                             avg_prec,
-                                                                            avg_rec))
+                                                                          avg_rec))
     writer.add_scalar('Accuracy/train', avg_acc, i)
     writer.add_scalar('F1/train', avg_f1, i)
+     '''
