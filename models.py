@@ -36,9 +36,11 @@ class SimpleLSTM(nn.Module):
         self.lstm = nn.LSTM(inp, hunits, hlayers, batch_first=True)
         self.output_layer = nn.Linear(hunits, out)
 
+        #Try random initialisation
+
     def forward(self, X):
         lstm_out, (h_n, c_n) = self.lstm(X)
-        print('Hidden, cell', X.shape, h_n.shape, c_n.shape, lstm_out.shape)
         raw_out = self.output_layer(h_n[-1])
+        #print('Shapes: ', lstm_out.shape, h_n.shape, c_n.shape, raw_out.shape)
 
         return raw_out
