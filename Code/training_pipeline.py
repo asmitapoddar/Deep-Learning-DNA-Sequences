@@ -19,7 +19,7 @@ from constants import *
 curr_dir_path = str(pathlib.Path().absolute())
 data_path = curr_dir_path + "/Data/"
 GET_METRICS = True
-LOGGING = False
+LOGGING = True
 
 class SequenceDataset(Dataset):
 
@@ -41,12 +41,19 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 x_train = np.loadtxt(data_path+'encoded_seq')
 no_timesteps = int(len(x_train[0])/4)
 x_train = x_train.reshape(-1, no_timesteps, 4)
+print("Input data shape: ", x_train.shape)
 y_train = np.loadtxt(data_path+'y_label_start')
-trainset = SequenceDataset(x_train, y_train)   # note: change input dataset size here if required
+trainset = SequenceDataset(x_train, y_train)   # NOTE: change input dataset size here if required
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
 
 # MODEL
-model = SimpleLSTM(4, HIDDEN_DIM, HIDDEN_LAYERS, 1)
+model = SimpleLSTM(4, HIDDEN_DIM, HIDDEN_LAYERS, 1, BATCH_SIZE, device)
+'''
+print('Parameters')
+for name, param in model.named_parameters():
+    if param.requires_grad:
+        print (name, param.data.shape)
+'''
 print(model)
 model.to(device)
 
@@ -69,8 +76,7 @@ if LOGGING:
 
     writer = tb.SummaryWriter(log_dir=tb_path)
     # writer.add_graph(model, iter(trainloader).next()[0].reshape(bsize, -1))
-    sample_data = iter(trainloader).next()[0]
-    print(sample_data.shape)
+    sample_data = iter(trainloader).next()[0]    # [batch_size X seq_length X embedding_dim]
     writer.add_graph(model, sample_data.to(device))
     writer.add_text('Model:', str(model))
     writer.add_text('Input shape:', str(x_train.shape))
@@ -129,3 +135,5 @@ for epoch in range(NUM_EPOCHS):
     print("!*" * 50)
     print("Epoch %i completed in %i seconds" % (epoch, epoch_time))
     print("!*" * 50)
+
+    #BOOO
