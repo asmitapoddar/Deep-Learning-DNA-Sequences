@@ -1,0 +1,4 @@
+SimpleLSTM(
+  (lstm): LSTM(4, 128, num_layers=3, batch_first=True)
+  (output_layer): Linear(in_features=128, out_features=1, bias=True)
+)
