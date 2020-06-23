@@ -15,7 +15,7 @@ data_path = curr_dir_path + "/Data/"
 MAX_LENGTH = 350
 NO_OFFSETS_PER_EXON = 5
 OFFSET_RANGE = [60, 340]
-WRITE_TO_FILE = True
+WRITE_TO_FILE = False
 
 def create_intervals(data, side, start=0, end=0):
     '''
@@ -191,6 +191,57 @@ def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, all_exon_
 
     return exon_boundary_intervals_final, exon_boundary_final
 
+def get_negative_samples(exon_intervals, gene_bounds):
+    '''
+    Craete negative samples for the dataset
+    :param exon_intervals:
+    :param gene_bounds:
+    :return: list of intervals
+            intervals containing the purely exonic sequences (negative samples)
+    '''
+    # get purely exonic sequences ---
+    within_exon_seq_interval = []
+
+    for exon_interval in exon_intervals:
+        # if the interval is subset-able
+        if (exon_interval.upper - exon_interval.lower + 1) > MAX_LENGTH:
+            for gene in gene_bounds:
+                if exon_interval in gene:
+                    #print('in gene!')
+                    for _ in range(5):
+                        n = random.randint(exon_interval.lower, exon_interval.upper-MAX_LENGTH)
+                        within_exon_seq_interval.append(P.closed(n, n+MAX_LENGTH-1))
+
+    # get purely intronic sequences
+    '''
+    2  5    6    9 11    15   20   25
+    |  (    )    ( )     (    )    |
+    G  E    E    E E     E    E    G     [E:exon_boundary, G:gene_boundary]
+    intron intervals: [[3,4], [7,8], [12,14], [21,24]]   
+    '''
+
+    min_max_exon_interval = P.closed(exon_intervals[0].lower, exon_intervals[-1].upper)
+    within_intron_seq_interval = []
+    for gene in gene_bounds:
+        if(min_max_exon_interval in gene):
+            # create intron invervals
+            exon_intervals.append(gene)
+            flat_data = []
+            for interval in exon_intervals:
+                flat_data.extend([interval.lower, interval.upper])
+            flat_data = sorted(flat_data)
+            intron_intervals = [flat_data[i:i + 2] for i in range(0, len(flat_data), 2)]
+            intron_intervals = list(map(lambda x: [x[0]+1, x[1]-1], intron_intervals)) # exon boundaries should not be included in intron intervals
+            for intron_interval in intron_intervals:
+                # if the interval is subset-able
+                if (intron_interval[1] - intron_interval[0] + 1) > MAX_LENGTH:
+                    print(intron_interval)
+                    for _ in range(5):
+                        n = random.randint(intron_interval[0], intron_interval[1] - MAX_LENGTH)
+                        within_intron_seq_interval.append(P.closed(n, n + MAX_LENGTH - 1))
+            break
+    return within_exon_seq_interval
+
 def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene):
     '''
     Function to create training set [start intervals/ end intervals] (positive samples)
@@ -207,8 +258,10 @@ def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene
     gene_bounds = gene['gene_bounds']
 
     for (exon_interval, exon_boundary) in zip(exon_boundary_intervals_final, exon_boundary_final):
+        print('Exon intervals', exon_interval.lower - gene_bounds[0], exon_interval.upper - gene_bounds[0]+1)
         seq = get_gene_seq(gene_sequence[exon_interval.lower - gene_bounds[0]:exon_interval.upper - gene_bounds[0]+1],
                          gene['gene_strand'])  #end index not included during offset: hence +1 during offset
+        print(seq)
         training_set_x.append(seq)
         training_set_y.append(exon_boundary)
 
@@ -241,6 +294,8 @@ def manipulate(dataset):
     end_training_x = []
     start_training_y = []
     end_training_y = []
+    len_neg = 0
+    len_pos = 0
 
     #print(len(data)) #875
     nonoverlapping_gene_intervals = remove_overlapping_genes(data)
@@ -248,7 +303,9 @@ def manipulate(dataset):
     print('non-overlapping genes ', len(nonoverlapping_gene_intervals), nonoverlapping_gene_intervals)  #821
 
     # Iterating through all genes of the chromosome
-    for gene in data[0:100]:
+    for gene in data[0:3]:
+        negative_start = []
+
         print(gene['gene_id'])
         gene_sequence = get_gene_seq(gene['gene_sequence'], gene['gene_strand'])
         gene_bounds = gene['gene_bounds']
@@ -282,29 +339,37 @@ def manipulate(dataset):
             exon_end_list = sorted(exon_end_list)
             exon_intervals_list = sorted(exon_intervals_list)
 
-            #print('Exons interval set', exon_intervals_list)
-            #print('Exon start list', exon_start_list)
-
+            # POSITIVE SAMPLES
             exon_start_set_final, exon_start_boundary_final = get_final_exon_intervals(exon_start_list, exon_start_boundaries,
                                                             exon_intervals_list, nonoverlapping_gene_intervals, 'start')
 
             exon_end_set_final, exon_end_boundary_final = get_final_exon_intervals(exon_end_list, exon_end_boundaries,
                                                           exon_intervals_list, nonoverlapping_gene_intervals, 'end')
 
+            # NEGATIVE SAMPLES
+            within_exon_seq_intervals = get_negative_samples(exon_intervals_list, nonoverlapping_gene_intervals)
+
+            negative_start.extend(within_exon_seq_intervals)
+            len_neg+=len(negative_start)
+            len_pos+=len(exon_start_set_final)
             #print('final exon start set', exon_start_set_final, exon_start_boundary_final)
             #print('final exon end set', exon_end_set_final, exon_end_boundary_final)
 
             # Training set creation ---
             sx, sy = create_training_set(exon_start_set_final, exon_start_boundary_final, gene)
+            nsx, nsy = create_training_set(negative_start, [0]*len(negative_start), gene)
             ex, ey = create_training_set(exon_end_set_final, exon_end_boundary_final, gene)
             start_training_x.extend(sx)
             start_training_y.extend(sy)
+            start_training_x.extend(nsx)
+            start_training_y.extend(nsy)
             end_training_x.extend(ex)
             end_training_y.extend(ey)
 
     print(start_training_y)
-    print('No. of samples in start and end training set:', len(start_training_x)) #, ",", len(end_training_y))
-
+    print('No. of samples in start or end training set:', len(start_training_x), len(start_training_y)) #, ",", len(end_training_y))
+    print("no. negative samples", len_neg)
+    print("no. positive samples", len_pos)
     # Write to file ----
     if WRITE_TO_FILE:
         write_to_file(start_training_y, 'y_label_start')
@@ -314,6 +379,7 @@ def manipulate(dataset):
 
     return
 
+#todo: get stats of how many positive and negattive samples there are in the set
 if __name__ == "__main__":
 
     file = data_path+"chr21_data.json"
