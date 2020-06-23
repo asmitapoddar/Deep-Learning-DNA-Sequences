@@ -10,15 +10,24 @@ from heapq import merge
 import portion as P
 import random
 
-curr_dir_path = str(pathlib.Path().absolute())
-data_path = curr_dir_path + "/Data/"
-MAX_LENGTH = 200
 NO_OFFSETS_PER_EXON = 5
-OFFSET_RANGE = [60, 340]
-WRITE_TO_FILE = True
+WRITE_TO_FILE = False
 
+# fix random seeds for reproducibility --
+random.seed(123)
 
-def create_intervals(data, side, start=0, end=0):  #NOTE: Using global variables
+def convert_list_to_interval(data):
+    '''
+    Convert a list of lists to a list of intervals
+    :param data: list of lists
+    :return: list of intervals
+    '''
+    res = []
+    for exon in data:
+        res.append(P.closed(exon[0], exon[1]))
+    return res
+
+def create_boundary_intervals(data, side, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSET_RANGE):  #NOTE: Using global variables
     '''
     Function to get a list of lists (list of ranges) and return a list of intervals
     Ex. Exon interval = [8,20]
@@ -37,22 +46,18 @@ def create_intervals(data, side, start=0, end=0):  #NOTE: Using global variables
     exon_boundary = []
 
     for exon in data:
-        if side == 'none':
-            res.append(P.closed(exon[0], exon[1]))
+        # generate 5 random numbers for exon boundary offset.
+        for _ in range(NO_OFFSETS_PER_EXON):
+            # range of offset into the intron is [60,340] (min intron length = 60, min exons length= 10 for each seq created)
+            intron_offset = random.randint(OFFSET_RANGE[0], OFFSET_RANGE[1])
+            exon_offset = MAX_LENGTH - intron_offset - 1
 
-        else:
-            # generate 5 random numbers for exon boundary offset.
-            for _ in range(NO_OFFSETS_PER_EXON):
-                # range of offset into the intron is [60,340] (min intron length = 60, min exons length= 10 for each seq created)
-                intron_offset = random.randint(OFFSET_RANGE[0], OFFSET_RANGE[1])
-                exon_offset = MAX_LENGTH - intron_offset - 1
+            if side == 'start':
+                res.append(P.closed(exon[0] - intron_offset, exon[0] + exon_offset))
+            if side == 'end':
+                res.append(P.closed(exon[1] - exon_offset, exon[1] + intron_offset))
 
-                if side == 'start':
-                    res.append(P.closed(exon[0] - intron_offset, exon[0] + exon_offset))
-                if side == 'end':
-                    res.append(P.closed(exon[1] - exon_offset, exon[1] + intron_offset))
-
-                exon_boundary.append(intron_offset + 1)  # 1-indexed (the start of seq is at index 1)
+            exon_boundary.append(intron_offset + 1)  # 1-indexed (the start of seq is at index 1)
 
     return res, exon_boundary
 
@@ -196,7 +201,7 @@ def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, all_exon_
     return exon_boundary_intervals_final, exon_boundary_final
 
 
-def get_negative_samples(exon_intervals, gene_bounds):    # NOTE: Global variables used
+def get_negative_samples(exon_intervals, gene_bounds, MAX_LENGTH):    # NOTE: Global variables used
     '''
     Craete negative samples for the dataset
     :param exon_intervals:
