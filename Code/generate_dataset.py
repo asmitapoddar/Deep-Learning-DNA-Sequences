@@ -12,7 +12,7 @@ data_path = curr_dir_path + "/Data/"
 
 MAX_LENGTH = 200
 NO_OFFSETS_PER_EXON = 5
-OFFSET_RANGE = [60, 340]
+OFFSET_RANGE = [60, MAX_LENGTH-10]
 EXON_BOUNDARY = 'start'  # or 'end'
 DATASET_TYPE = 'classification'  # or 'regression'
 WRITE_DATA_TO_FILE = True
@@ -46,9 +46,10 @@ def manipulate(dataset, chrm):
     for gene in data:  #Note: controlling how many genes to use
         negative_start = []
 
-        print(gene['gene_id'])
+        #print(gene['gene_id'])
         gene_sequence = get_gene_seq(gene['gene_sequence'], gene['gene_strand'])
         gene_bounds = gene['gene_bounds']
+        print(gene['gene_bounds'])
 
         exons_ranges_in_transcript = []
 
@@ -85,6 +86,10 @@ def manipulate(dataset, chrm):
                                                                                        nonoverlapping_gene_intervals,
                                                                                        EXON_BOUNDARY)
 
+            for exon_boundary in exon_boundary_set_final:
+                if exon_boundary.upper - exon_boundary.lower + 1!=200:
+                    print('Exon-intron boundary')
+                    print(exon_boundary.upper - exon_boundary.lower + 1)
             # NEGATIVE SAMPLES
             within_exon_seq_intervals, within_intron_seq_intervals = get_negative_samples(exon_intervals_list,
                                                                                           nonoverlapping_gene_intervals,
@@ -102,9 +107,24 @@ def manipulate(dataset, chrm):
                 Purely Exonic Sequences: Class 1
                 Purely Intronic Sequences: Class 2
                 '''
-                sxboundary, syboundary = create_training_set(exon_boundary_set_final, [0]*len(exon_boundary_y_final), gene)
-                sxexon, syexon = create_training_set(within_exon_seq_intervals, [1] * len(within_exon_seq_intervals), gene)
-                sxintron, syintron = create_training_set(within_intron_seq_intervals, [2] * len(within_intron_seq_intervals), gene)
+
+                sxboundary, syboundary = create_training_set(exon_boundary_set_final, [0]*len(exon_boundary_y_final), gene, MAX_LENGTH)
+                sxexon, syexon = create_training_set(within_exon_seq_intervals, [1] * len(within_exon_seq_intervals), gene, MAX_LENGTH)
+                sxintron, syintron = create_training_set(within_intron_seq_intervals, [2] * len(within_intron_seq_intervals), gene, MAX_LENGTH)
+                for exon in sxboundary:
+                    if len(exon)!= 200:
+                        print('Boundary ')
+                        print(len(exon))
+
+                for exon in sxexon:
+                    if len(exon)!= 200:
+                        print('Exon ')
+                        print(len(exon))
+
+                for exon in sxintron:
+                    if len(exon) != 200:
+                        print('Intron ')
+                        print(len(exon))
                 #print('sxboundary', sxboundary, syboundary)
                 #print(sxexon, syexon)
                 #print(sxintron, syintron)
@@ -117,9 +137,9 @@ def manipulate(dataset, chrm):
                 Purely Exonic Sequences: 0
                 Purely Intronic Sequences: 0
                 '''
-                sxboundary, syboundary = create_training_set(exon_boundary_set_final, exon_boundary_y_final, gene)
-                sxexon, syexon = create_training_set(within_exon_seq_intervals, [0] * len(within_exon_seq_intervals), gene)
-                sxintron, syintron = create_training_set(within_intron_seq_intervals, [0] * len(within_intron_seq_intervals), gene)
+                sxboundary, syboundary = create_training_set(exon_boundary_set_final, exon_boundary_y_final, gene, MAX_LENGTH)
+                sxexon, syexon = create_training_set(within_exon_seq_intervals, [0] * len(within_exon_seq_intervals), gene, MAX_LENGTH)
+                sxintron, syintron = create_training_set(within_intron_seq_intervals, [0] * len(within_intron_seq_intervals), gene, MAX_LENGTH)
                 training_x.extend(sxboundary + sxexon + sxintron)
                 training_y.extend(syboundary + syexon + syintron)
 
@@ -147,10 +167,10 @@ def manipulate(dataset, chrm):
             f.write("\nNo. of pure exon samples = " + str(len_exon))
             f.write("\nNo. of pure intron samples = " + str(len_intron))
 
-        print('No. of samples in training set:', len(training_x))
-        print("no. positive samples", len_boundary)
-        print("no. exon samples", len_exon)
-        print("no. intron samples", len_intron)
+    print('No. of samples in training set:', len(training_x))
+    print("no. positive samples", len_boundary)
+    print("no. exon samples", len_exon)
+    print("no. intron samples", len_intron)
 
     return
 
