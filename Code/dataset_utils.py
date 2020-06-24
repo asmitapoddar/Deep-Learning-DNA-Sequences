@@ -16,6 +16,8 @@ WRITE_TO_FILE = False
 # fix random seeds for reproducibility --
 random.seed(123)
 
+#todo: create class with attributes and functions, so that the attributes do not need to be passed to individual functions
+
 def convert_list_to_interval(data):
     '''
     Convert a list of lists to a list of intervals
@@ -157,7 +159,7 @@ def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, all_exon_
     '''
     exon_boundary_intervals_final = []
     exon_boundary_final = []
-
+    #print('exon_boundary_intervals', exon_boundary_intervals)
     for (exon_boundary_interval, exon_boundary, var) in zip(exon_boundary_intervals, exon_boundaries,
                                                             range(0, len(exon_boundary_intervals))):
 
@@ -168,7 +170,7 @@ def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, all_exon_
         # Check exon in within gene bounds
         for gene in nonoverlapping_gene_intervals:
             if exon_boundary_interval in gene:
-
+                #print('in gene!', exon_boundary_interval, exon_boundary, gene)
                 # Check exon site interval area does not overlap with other (5) exons on the left
                 for j in range(i - 5, i):
                     if (j < 0):
@@ -198,6 +200,7 @@ def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, all_exon_
                     exon_boundary_final.append(exon_boundary)
                 break
 
+    #print('exon_boundary_intervals_final', exon_boundary_intervals_final)
     return exon_boundary_intervals_final, exon_boundary_final
 
 
@@ -261,7 +264,7 @@ def get_negative_samples(exon_intervals, gene_bounds, MAX_LENGTH):    # NOTE: Gl
     return within_exon_seq_interval, within_intron_seq_interval
 
 
-def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene):
+def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene, MAXLENGTH):
     '''
     Function to create training set [start intervals/ end intervals] (positive samples)
     :param exon_boundary_intervals_final: list of intervals
@@ -276,10 +279,11 @@ def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene
     gene_sequence = gene['gene_sequence']
     gene_bounds = gene['gene_bounds']
 
+    #print('exon_boundary_intervals_final (training)', exon_boundary_intervals_final)
     for (exon_interval, exon_boundary) in zip(exon_boundary_intervals_final, exon_boundary_final):
-        #print('Exon intervals', exon_interval.lower - gene_bounds[0], exon_interval.upper - gene_bounds[0] + 1)
         seq = get_gene_seq(gene_sequence[exon_interval.lower - gene_bounds[0]:exon_interval.upper - gene_bounds[0] + 1],
                            gene['gene_strand'])  # end index not included during offset: hence +1 during offset
+        assert len(seq) == MAX_LENGTH, "ill-formed sequence: " + seq
         training_set_x.append(seq)
         training_set_y.append(exon_boundary)
 
