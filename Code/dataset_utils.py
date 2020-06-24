@@ -200,7 +200,6 @@ def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, all_exon_
                     exon_boundary_final.append(exon_boundary)
                 break
 
-    #print('exon_boundary_intervals_final', exon_boundary_intervals_final)
     return exon_boundary_intervals_final, exon_boundary_final
 
 
@@ -264,7 +263,7 @@ def get_negative_samples(exon_intervals, gene_bounds, MAX_LENGTH):    # NOTE: Gl
     return within_exon_seq_interval, within_intron_seq_interval
 
 
-def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene, MAXLENGTH):
+def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene, MAX_LENGTH):
     '''
     Function to create training set [start intervals/ end intervals] (positive samples)
     :param exon_boundary_intervals_final: list of intervals
@@ -279,7 +278,6 @@ def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene
     gene_sequence = gene['gene_sequence']
     gene_bounds = gene['gene_bounds']
 
-    #print('exon_boundary_intervals_final (training)', exon_boundary_intervals_final)
     for (exon_interval, exon_boundary) in zip(exon_boundary_intervals_final, exon_boundary_final):
         seq = get_gene_seq(gene_sequence[exon_interval.lower - gene_bounds[0]:exon_interval.upper - gene_bounds[0] + 1],
                            gene['gene_strand'])  # end index not included during offset: hence +1 during offset
@@ -301,3 +299,17 @@ def write_to_file(data, file_name):
     with open(file_name, "w+") as file:
         file.write("\n".join(str(item) for item in data))
     file.close()
+
+def sanity_check(dataset, intervals, columns, type, gene, intron_exon_boundary = None):
+    '''
+    Create a data frame to be appended to main data frame for sanity check
+    :param dataset: list of str: list of sequences
+    :param intervals: list of intervals
+    :param columns: list of str: column names
+    :param type: str: dataset type
+    :return: Data frame
+    '''
+    return pd.DataFrame(
+        {columns[0]: [type] * len(dataset), columns[1]: dataset, columns[2]: intervals,
+         columns[3]: [gene['gene_id']] * len(dataset), columns[4]: [gene['gene_strand']] * len(dataset),
+         columns[5]: intron_exon_boundary})

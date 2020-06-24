@@ -4,20 +4,21 @@ import os
 import json
 import itertools
 import tqdm
-import random
 from dataset_utils import *
 
 curr_dir_path = str(pathlib.Path().absolute())
 data_path = curr_dir_path + "/Data/"
+log_path = data_path + DATASET_TYPE
 
 MAX_LENGTH = 200
 NO_OFFSETS_PER_EXON = 5
 OFFSET_RANGE = [60, MAX_LENGTH-10]
 EXON_BOUNDARY = 'start'  # or 'end'
-DATASET_TYPE = 'classification'  # or 'regression'
+DATASET_TYPE = 'regression' # 'classification'  # or 'regression'
+classes = 'three'  # if DATASET_TYPE = 'classification'
 WRITE_DATA_TO_FILE = True
 DATA_LOG = True
-log_path = data_path + DATASET_TYPE
+SANITY_CHECK = True
 
 def manipulate(dataset, chrm):
     '''
@@ -37,6 +38,9 @@ def manipulate(dataset, chrm):
     len_intron = 0
     len_boundary = 0
 
+    columns = ['Type', 'Sequence', 'Interval_Indices', 'GeneID', 'Gene_Strand', 'Boundary_Position']
+    finaldf = pd.DataFrame(columns=columns)  # For sanity check
+
     # print(len(data)) #875
     nonoverlapping_gene_intervals = remove_overlapping_genes(data)
     nonoverlapping_gene_intervals = convert_list_to_interval(nonoverlapping_gene_intervals)
@@ -44,28 +48,21 @@ def manipulate(dataset, chrm):
 
     # Iterating through all genes of the chromosome
     for gene in data:  #Note: controlling how many genes to use
-        negative_start = []
 
         #print(gene['gene_id'])
         gene_sequence = get_gene_seq(gene['gene_sequence'], gene['gene_strand'])
         gene_bounds = gene['gene_bounds']
-        print(gene['gene_bounds'])
 
         exons_ranges_in_transcript = []
-
         # Iterating through all transcripts of the gene
         for transcript in gene["transcripts"]:
-
             exon_ranges = []
-
             # Iterating through all exons of the transcript for the gene
             for exon in transcript['exons']:
                 ranges = [x for x in exon['exon_ranges']]
                 exon_ranges.append(ranges)
-
             if (len(exon_ranges) != 0):  # if there exist exons in the transcript
                 exons_ranges_in_transcript.append(exon_ranges)
-        # print('All exon ranges', exons_ranges_in_transcript)
 
         # if there exists at least one exon in transcript----
         if (len(exons_ranges_in_transcript) >= 1):
@@ -86,19 +83,16 @@ def manipulate(dataset, chrm):
                                                                                        nonoverlapping_gene_intervals,
                                                                                        EXON_BOUNDARY)
 
-            for exon_boundary in exon_boundary_set_final:
-                if exon_boundary.upper - exon_boundary.lower + 1!=200:
-                    print('Exon-intron boundary')
-                    print(exon_boundary.upper - exon_boundary.lower + 1)
             # NEGATIVE SAMPLES
             within_exon_seq_intervals, within_intron_seq_intervals = get_negative_samples(exon_intervals_list,
                                                                                           nonoverlapping_gene_intervals,
                                                                                           MAX_LENGTH)
 
+            # Get training set info
             len_exon += len(within_exon_seq_intervals)
             len_intron += len(within_intron_seq_intervals)
             len_boundary += len(exon_boundary_set_final)
-            #print(len_pos, len_exon, len_intron)
+            print('Dataset stats (#boundary, #exon, #intron): ', len_boundary, len_exon, len_intron)
 
             # TRAINING SET CREATION ----
             if DATASET_TYPE=='classification':
@@ -107,29 +101,25 @@ def manipulate(dataset, chrm):
                 Purely Exonic Sequences: Class 1
                 Purely Intronic Sequences: Class 2
                 '''
+                if classes=='three':
+                    sxboundary, syboundary = create_training_set(exon_boundary_set_final,
+                                                                 [0]*len(exon_boundary_y_final), gene, MAX_LENGTH)
+                    sxexon, syexon = create_training_set(within_exon_seq_intervals,
+                                                         [1] * len(within_exon_seq_intervals), gene, MAX_LENGTH)
+                    sxintron, syintron = create_training_set(within_intron_seq_intervals,
+                                                             [2] * len(within_intron_seq_intervals), gene, MAX_LENGTH)
+                    training_x.extend(sxboundary+sxexon+sxintron)
+                    training_y.extend(syboundary+syexon+syintron)
 
-                sxboundary, syboundary = create_training_set(exon_boundary_set_final, [0]*len(exon_boundary_y_final), gene, MAX_LENGTH)
-                sxexon, syexon = create_training_set(within_exon_seq_intervals, [1] * len(within_exon_seq_intervals), gene, MAX_LENGTH)
-                sxintron, syintron = create_training_set(within_intron_seq_intervals, [2] * len(within_intron_seq_intervals), gene, MAX_LENGTH)
-                for exon in sxboundary:
-                    if len(exon)!= 200:
-                        print('Boundary ')
-                        print(len(exon))
-
-                for exon in sxexon:
-                    if len(exon)!= 200:
-                        print('Exon ')
-                        print(len(exon))
-
-                for exon in sxintron:
-                    if len(exon) != 200:
-                        print('Intron ')
-                        print(len(exon))
-                #print('sxboundary', sxboundary, syboundary)
-                #print(sxexon, syexon)
-                #print(sxintron, syintron)
-                training_x.extend(sxboundary+sxexon+sxintron)
-                training_y.extend(syboundary+syexon+syintron)
+                if classes=='two':
+                    sxboundary, syboundary = create_training_set(exon_boundary_set_final,
+                                                                 [0] * len(exon_boundary_y_final), gene, MAX_LENGTH)
+                    sxexon, syexon = create_training_set(within_exon_seq_intervals,
+                                                         [1] * len(within_exon_seq_intervals), gene, MAX_LENGTH)
+                    sxintron, syintron = create_training_set(within_intron_seq_intervals,
+                                                             [1] * len(within_intron_seq_intervals), gene, MAX_LENGTH)
+                    training_x.extend(sxboundary + sxexon + sxintron)
+                    training_y.extend(syboundary + syexon + syintron)
 
             if DATASET_TYPE == 'regression':
                 '''
@@ -138,10 +128,19 @@ def manipulate(dataset, chrm):
                 Purely Intronic Sequences: 0
                 '''
                 sxboundary, syboundary = create_training_set(exon_boundary_set_final, exon_boundary_y_final, gene, MAX_LENGTH)
-                sxexon, syexon = create_training_set(within_exon_seq_intervals, [0] * len(within_exon_seq_intervals), gene, MAX_LENGTH)
-                sxintron, syintron = create_training_set(within_intron_seq_intervals, [0] * len(within_intron_seq_intervals), gene, MAX_LENGTH)
+                sxexon, syexon = create_training_set(within_exon_seq_intervals,
+                                                     [0] * len(within_exon_seq_intervals), gene, MAX_LENGTH)
+                sxintron, syintron = create_training_set(within_intron_seq_intervals,
+                                                         [0] * len(within_intron_seq_intervals), gene, MAX_LENGTH)
                 training_x.extend(sxboundary + sxexon + sxintron)
                 training_y.extend(syboundary + syexon + syintron)
+
+                if SANITY_CHECK:
+                    assert DATASET_TYPE == 'regression', "Sanity check can only be performed when DATASET_TYPE=='regression'"
+                    dfboundary = sanity_check(sxboundary, exon_boundary_set_final, columns, 'Boundary', gene, syboundary)
+                    dfexon = sanity_check(sxexon, within_exon_seq_intervals, columns, 'Exon', gene)
+                    dfintron = sanity_check(sxintron, within_intron_seq_intervals, columns, 'Intron', gene)
+                    finaldf = finaldf.append([dfboundary, dfexon, dfintron])
 
     write_dir = log_path + '/' + chrm
     # Write to file ----
@@ -161,11 +160,18 @@ def manipulate(dataset, chrm):
             f.write('\nEXON BOUNDARY: ' + str(EXON_BOUNDARY))
             f.write('\nMAX SEQUENCE LENGTH = ' + str(MAX_LENGTH))
             f.write('\nNO_OFFSETS_PER_EXON = ' + str(NO_OFFSETS_PER_EXON))
-            f.write('\nOFFSET_RANGE = ' + str(OFFSET_RANGE))
+            f.write('\nOFFSET_RANGE (from exon boundary into intronic region) = ' + str(OFFSET_RANGE))
             f.write('\n\nTotal no. of samples in training set = ' + str(len(training_x)))
             f.write("\nNo. samples containing intron-exon boundary = " + str(len_boundary))
             f.write("\nNo. of pure exon samples = " + str(len_exon))
             f.write("\nNo. of pure intron samples = " + str(len_intron))
+
+    if SANITY_CHECK:
+        # Note: Currently only support sanity check for regression, todo: add sanity check for classification
+        assert DATASET_TYPE=='regression', "Sanity check can only be performed when DATASET_TYPE=='regression'"
+        if not os.path.exists(write_dir):
+            os.mkdir(write_dir)
+        finaldf.to_csv(write_dir+'/'+chrm+'_'+str(MAX_LENGTH)+'.csv', header=columns, index = False)
 
     print('No. of samples in training set:', len(training_x))
     print("no. positive samples", len_boundary)
@@ -179,4 +185,4 @@ if __name__ == "__main__":
     with open(file, "r") as f:
         dataset = json.load(f)
 
-    manipulate(dataset, 'chr21')
+    manipulate(dataset, 'sanity')
