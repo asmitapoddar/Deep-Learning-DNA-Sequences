@@ -8,7 +8,6 @@ from dataset_utils import *
 
 curr_dir_path = str(pathlib.Path().absolute())
 data_path = curr_dir_path + "/Data/"
-log_path = data_path + DATASET_TYPE
 
 MAX_LENGTH = 200
 NO_OFFSETS_PER_EXON = 5
@@ -19,6 +18,7 @@ classes = 'three'  # if DATASET_TYPE = 'classification'
 WRITE_DATA_TO_FILE = True
 DATA_LOG = True
 SANITY_CHECK = True
+META_DATA = True
 
 def manipulate(dataset, chrm):
     '''
@@ -34,12 +34,14 @@ def manipulate(dataset, chrm):
 
     training_x = []
     training_y = []
+    all_exon_intervals = pd.DataFrame(columns=['Gene', 'Exon_Intervals'])
     len_exon = 0
     len_intron = 0
     len_boundary = 0
 
     columns = ['Type', 'Sequence', 'Interval_Indices', 'GeneID', 'Gene_Strand', 'Boundary_Position']
     finaldf = pd.DataFrame(columns=columns)  # For sanity check
+    chrm_path = data_path + chrm + '/'
 
     # print(len(data)) #875
     nonoverlapping_gene_intervals = remove_overlapping_genes(data)
@@ -94,6 +96,9 @@ def manipulate(dataset, chrm):
             len_boundary += len(exon_boundary_set_final)
             print('Dataset stats (#boundary, #exon, #intron): ', len_boundary, len_exon, len_intron)
 
+            all_exon_intervals = all_exon_intervals.append(
+                {'Gene': gene['gene_id'], 'Exon_Intervals': exon_intervals_list}, ignore_index=True)
+
             # TRAINING SET CREATION ----
             if DATASET_TYPE=='classification':
                 '''
@@ -136,26 +141,25 @@ def manipulate(dataset, chrm):
                 training_y.extend(syboundary + syexon + syintron)
 
                 if SANITY_CHECK:
-                    assert DATASET_TYPE == 'regression', "Sanity check can only be performed when DATASET_TYPE=='regression'"
-                    dfboundary = sanity_check(sxboundary, exon_boundary_set_final, columns, 'Boundary', gene, syboundary)
+                    dfboundary = sanity_check(sxboundary, exon_boundary_set_final, columns, 'Boundary', gene, exon_boundary_y_final)
                     dfexon = sanity_check(sxexon, within_exon_seq_intervals, columns, 'Exon', gene)
                     dfintron = sanity_check(sxintron, within_intron_seq_intervals, columns, 'Intron', gene)
                     finaldf = finaldf.append([dfboundary, dfexon, dfintron])
 
-    write_dir = log_path + '/' + chrm
+    dataset_path = chrm_path + DATASET_TYPE
     # Write to file ----
     if WRITE_DATA_TO_FILE:
 
-        print(write_dir)
-        if not os.path.exists(write_dir):
-            os.mkdir(write_dir)
-        write_to_file(training_y, write_dir + '/y_label_'+EXON_BOUNDARY)
-        write_to_file(training_x, write_dir + '/dna_seq_'+EXON_BOUNDARY)
+        print(dataset_path)
+        if not os.path.exists(dataset_path):
+            os.makedirs(dataset_path)
+        write_to_file(training_y, dataset_path + '/y_label_'+EXON_BOUNDARY)
+        write_to_file(training_x, dataset_path + '/dna_seq_'+EXON_BOUNDARY)
 
     if DATA_LOG:
-        if not os.path.exists(write_dir):
-            os.mkdir(write_dir)
-        with open(write_dir + '/info.log', 'w+') as f:
+        if not os.path.exists(dataset_path):
+            os.makedirs(dataset_path)
+        with open(dataset_path + '/info.log', 'w+') as f:
             f.write('DATASET TYPE: ' + str(DATASET_TYPE))
             f.write('\nEXON BOUNDARY: ' + str(EXON_BOUNDARY))
             f.write('\nMAX SEQUENCE LENGTH = ' + str(MAX_LENGTH))
@@ -167,11 +171,15 @@ def manipulate(dataset, chrm):
             f.write("\nNo. of pure intron samples = " + str(len_intron))
 
     if SANITY_CHECK:
-        # Note: Currently only support sanity check for regression, todo: add sanity check for classification
-        assert DATASET_TYPE=='regression', "Sanity check can only be performed when DATASET_TYPE=='regression'"
-        if not os.path.exists(write_dir):
-            os.mkdir(write_dir)
-        finaldf.to_csv(write_dir+'/'+chrm+'_'+str(MAX_LENGTH)+'.csv', header=columns, index = False)
+        if not os.path.exists(chrm_path):
+            os.makedirs(chrm_path)
+        finaldf.to_csv(chrm_path+chrm+'_sanity_'+str(MAX_LENGTH)+'.csv', header=columns, index = False)
+
+    if META_DATA:
+        if not os.path.exists(chrm_path):
+            os.makedirs(chrm_path)
+        write_to_file(nonoverlapping_gene_intervals, chrm_path+chrm+'_nonoverlapping_gene_intervals.txt')
+        all_exon_intervals.to_csv(chrm_path+chrm+'_exon_intervals.csv', header=['Gene', 'Exon_Intervals'], index=False, doublequote=False)
 
     print('No. of samples in training set:', len(training_x))
     print("no. positive samples", len_boundary)
@@ -185,4 +193,4 @@ if __name__ == "__main__":
     with open(file, "r") as f:
         dataset = json.load(f)
 
-    manipulate(dataset, 'sanity')
+    manipulate(dataset, 'chrm21')
