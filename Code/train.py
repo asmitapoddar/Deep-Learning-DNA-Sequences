@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 from models import *
 from metrics import *
+import time
+import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -21,17 +23,19 @@ data_path = curr_dir_path + "/Data/"
 
 class Training():
 
-    def __init__(self, config, model_name_save_dir, data_path='', save_dir = '', start_epoch=0):
+    def __init__(self, config, model_name_save_dir, data_path='', save_dir = '', load_dir=None, start_epoch=0):
         self.config = config
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.data_path = data_path
         self.save_dir = save_dir
+        self.load_dir = load_dir
 
         self.start_epoch = start_epoch
         self.model = None
         self.optimizer = None
         self.trainloader = None
+        self.writer = {'train': None, 'val': None}  # For TensorBoard
 
         self.metrics = {'train': {}, 'val': {}}
         self.model_name_save_dir = model_name_save_dir
@@ -91,7 +95,7 @@ class Training():
 
         self.logger.info("Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch))
 
-    def write_model_meta_data(self):
+    def write_model_meta_data(self, y_train, y_val):  # todo might move to train_utils later
         '''
         Write meta-info about model to file
         '''
@@ -104,13 +108,26 @@ class Training():
 
         log_file = open(self.save_dir + '/info.log', "w+")
         log_file.write(str(self.model))
-        log_file.close()
-
-        #Todo: print to file
-        print('Parameters')
+        log_file.write('\nParameters Names & Shapes: ')
         for name, param in self.model.named_parameters():
             if param.requires_grad:
-                print(name, param.data.shape)
+                log_file.write('\n' + name + str(param.data.shape))
+
+        log_file.write('\nTraining Dataset Size: ' + str(len(y_train)))
+        log_file.write('\nValidation Dataset Size: ' + str(len(y_val)))
+
+        log_file.write('\n' + get_class_dist(y_train, 'train'))
+        log_file.write('\n' + get_class_dist(y_val, 'val') + '\n')
+
+        log_file.close()
+
+    def write_model_loss_metrics(self, epoch, loss, task):
+        log_file = open(self.save_dir + '/info.log', "a+")
+        log_file.write('\nEpoch: {:d} ----- {:s} ------'.format(epoch, task.upper()))
+        log_file.write('\nTrain Loss: {:.4f}, '.format(loss) + str(self.metrics[task]))
+        if task == 'val':
+            log_file.write('\n')
+        log_file.close()
 
     '''
     def load_saved_state(self, state_file_path):
@@ -143,39 +160,46 @@ class Training():
     def logger(self, epoch, x_train, train_loss, val_loss):
         """
         Write to TensorBoard
-        :param epoch: int - epoch number
-        :param train_loss: float
-        :param val_loss: float
-        :return: None
         """
+        #Writing to be done in the first epoch
+        print('Epoch in TensorBoard:', epoch)
+        if epoch==0:
+            tb_path = './runs/' + self.model_name_save_dir
+            print('tb_path', tb_path)
+            if os.path.isdir(tb_path):
+                shutil.rmtree(tb_path)
 
-        tb_path = './runs/' + self.model_name_save_dir
-        print('tb_path', tb_path)
-        if os.path.isdir(tb_path):
-            shutil.rmtree(tb_path)
-
-        writer = tb.SummaryWriter(log_dir=tb_path+'/train')
-        val_writer = tb.SummaryWriter(log_dir=tb_path + '/val')
-        sample_data = iter(self.trainloader).next()[0]  # [batch_size X seq_length X embedding_dim]
-        writer.add_graph(self.model, sample_data.to(self.device))
-        writer.add_text('Model:', str(self.model))
-        writer.add_text('Input shape:', str(x_train.shape))
-        writer.add_text('Data Preprocessing:', 'None, One-hot')
-        writer.add_text('Optimiser', str(self.optimizer))
-        writer.add_text('Batch Size:', str(self.config['DATA']['BATCH_SIZE']))
+            self.writer['train'] = tb.SummaryWriter(log_dir=tb_path+'/train')
+            self.writer['val'] = tb.SummaryWriter(log_dir=tb_path + '/val')
+            sample_data = iter(self.trainloader).next()[0]  # [batch_size X seq_length X embedding_dim]
+            print(sample_data.shape)
+            self.writer['train'].add_graph(self.model, sample_data.to(self.device))
+            self.writer['train'].add_text('Model:', str(self.model))
+            self.writer['train'].add_text('Input shape:', str(x_train.shape))
+            self.writer['train'].add_text('Data Preprocessing:', 'None, One-hot')
+            self.writer['train'].add_text('Optimiser', str(self.optimizer))
+            self.writer['train'].add_text('Batch Size:', str(self.config['DATA']['BATCH_SIZE']))
+            self.writer['train'].add_text('Epochs:', str(self.config['TRAINER']['epochs']))
 
         for measure, value in self.metrics['train'].items():
-            writer.add_scalar(str('Train/'+measure), value, epoch)
-        writer.add_scalar('Loss', train_loss, epoch)
+            self.writer['train'].add_scalar(str('Train/'+measure), value, epoch)
+        self.writer['train'].add_scalar('Loss', train_loss, epoch)
         for measure, value in self.metrics['val'].items():
-            val_writer.add_scalar(str('Val/'+measure), value, epoch)
-        val_writer.add_scalar('Loss', val_loss, epoch)
+            self.writer['val'].add_scalar(str('Val/'+measure), value, epoch)
+        self.writer['val'].add_scalar('Loss', val_loss, epoch)
 
 
     def train_one_epoch(self, epoch, x_train, y_train):
+        '''
+        Train one epoch
+        :param epoch: int - epoch number
+        :param x_train: Numpy array - training data (sequences)
+        :param y_train: Numpy array - training data (labels)
+        :return: float - avg_train_loss
+        '''
 
         # INPUT DATA
-        trainset = SequenceDataset(x_train, y_train)  # NOTE: change input dataset size here if required
+        trainset = SequenceDataset(x_train[0:10], y_train[0:10])  # NOTE: change input dataset size here if required
         self.trainloader = torch.utils.data.DataLoader(
                         trainset, batch_size=self.config['DATA']['BATCH_SIZE'],
                         shuffle=self.config['DATA']['SHUFFLE'], num_workers=self.config['DATA']['NUM_WORKERS'])
@@ -204,7 +228,7 @@ class Training():
             print('Train batch: ', bnum)
             raw_out = self.model.forward(sample[0].to(self.device))
             loss = loss_fn(raw_out, sample[1].long().to(self.device))
-            print('Loss: ', loss)
+            #print('Loss: ', loss)
             loss.backward()
             self.optimizer.step()
 
@@ -217,21 +241,31 @@ class Training():
         # EVALUATION METRICS PER EPOCH
         for measure in m.metrics:
             self.metrics['train'][measure] /= (bnum+1)
+
         print('Epoch: {:d}, Train Loss: {:.4f}, '.format(epoch, avg_train_loss), self.metrics['train'])
         return avg_train_loss
 
-    def val_one_epoch(self, epoch, x_val, y_val):
 
-        trainset = SequenceDataset(x_val, y_val)  # NOTE: change input dataset size here if required todo:
-        valdataloader = torch.utils.data.DataLoader(
-                    trainset, batch_size=self.config['DATA']['BATCH_SIZE'],
+    def val_one_epoch(self, epoch, x_val, y_val):
+        '''
+        Validation loop for epoch
+        :param epoch: int - epoch number
+        :param x_val: Numpy array - validation data (sequences)
+        :param y_val: Numpy array - validation data (labels)
+        :return: int - avg_val_loss
+        '''
+
+        valset = SequenceDataset(x_val, y_val)  # NOTE: change input dataset size here if required todo:
+        val_dataloader = torch.utils.data.DataLoader(
+                    valset, batch_size=self.config['DATA']['BATCH_SIZE'],
                     shuffle=self.config['DATA']['SHUFFLE'], num_workers=self.config['DATA']['NUM_WORKERS'])
 
         m = Metrics(self.config['DATASET_TYPE'])  # m.metrics initialised to {0,0,0}
         self.metrics['val'] = m.metrics
         loss_fn =  getattr(nn, self.config['LOSS'])()
         avg_val_loss = 0
-        for bnum, sample in enumerate(valdataloader):
+
+        for bnum, sample in enumerate(val_dataloader):
             print('Val batch: ', bnum)
             self.model.eval()
             raw_out = self.model.forward(sample[0].to(self.device))
@@ -243,8 +277,12 @@ class Training():
                 self.metrics['val'][key] += value
             avg_val_loss += loss.item()
 
+        for measure in m.metrics:
+            self.metrics['val'][measure] /= (bnum+1)
+
         print('Epoch: {:d}, Valid Loss: {:.4f}, '.format(epoch, avg_val_loss), self.metrics['val'])
         return avg_val_loss
+
 
     def training_pipeline(self):
         #Todo:For loading state, self.start epoch would change
@@ -255,12 +293,8 @@ class Training():
         print("Input data shape: ", encoded_seq.shape)
         y_label = np.loadtxt(self.data_path + '/y_label_start')
 
-
         if self.config['VALIDATION']:
             train_idx, val_idx = create_train_val_split(self.config['DATA']['VALIDATION_SPLIT'], n_samples=len(encoded_seq))
-            self.config['DATA']['SHUFFLE'] = False  # turn off shuffle option which is mutually exclusive with sampler
-
-            print('len(train_idx)', len(train_idx))
 
             # Create train/validation split --
             x_train = encoded_seq[np.ix_(train_idx)] #replace `train_idx` by `np.arange(len(encoded_seq))` to use whole dataset
@@ -271,7 +305,8 @@ class Training():
             x_train = encoded_seq
             y_train = y_label
 
-        print(x_train.shape, x_val.shape)
+        print(get_class_dist(y_train, 'train'))
+        print(get_class_dist(y_val, 'val'))
 
         for epoch in range(self.start_epoch, self.config['TRAINER']['epochs']):
             print("Training Epoch %i -------------------" % epoch)
@@ -284,21 +319,35 @@ class Training():
             epoch_time = epoch_toc - epoch_tic
             print("******************* Epoch %i completed in %i seconds ********************" % (epoch, epoch_time))
 
-            # SAVE TO CHECKPOINT TO DIRECTORY
-            if epoch==0:
-                self.write_model_meta_data()
-            if epoch % self.config['TRAINER']['save_period'] == 0:
-                #self.write_model_loss_metrics()  # todo future: save to training file : epoch details loss, metrics etc.
-                self.save_checkpoint(epoch)
+            # Writing to be done in the first epoch
+            if self.config['TRAINER']["save_model_to_dir"]:
+                if epoch==0:
+                    self.write_model_meta_data(y_train, y_val)
 
+                # SAVE TRAINING DETAILS TO INFO LOG
+                self.write_model_loss_metrics(epoch, train_loss, 'train')
+                if self.config['VALIDATION']:
+                    self.write_model_loss_metrics(epoch, val_loss, 'val')
+
+                # SAVE TO CHECKPOINT TO DIRECTORY
+                if epoch % self.config['TRAINER']['save_period'] == 0:
+                    self.save_checkpoint(epoch)
+
+            # TENSORBOARD LOGGING
             if self.config['TRAINER']['tensorboard']:
                 if not self.config['VALIDATION']:
                     val_loss = 0.0
                 self.logger(epoch, x_train, train_loss, val_loss)
                 # write to runs folder (create a model file name, and write the various training runs in it
 
-            # SAVE MODEL TO DIRECTORY
+        # SAVE MODEL TO DIRECTORY
+        if self.config['TRAINER']["save_model_to_dir"]:
+            print('Saving model at ', self.save_dir)
             torch.save(self.model, self.save_dir+'/trained_model_'+self.model_name_save_dir)
+
+        if self.config['TRAINER']['tensorboard']:
+            self.writer['train'].close()
+            self.writer['train'].close()
 
 if __name__ == "__main__":
 
@@ -309,7 +358,9 @@ if __name__ == "__main__":
         config = json.load(json_data, strict=False)
 
     final_data_path = data_path+chrm+config['DATASET_TYPE']+config["DATA"]["DATA_DIR"]
-    saved_model_folder = string_metadata(config)
+    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('_%d-%m_%H:%M')
+    saved_model_folder = string_metadata(config) + timestamp
     save_dir_path = curr_dir_path + config['TRAINER']['save_dir'] + '/'+ saved_model_folder
+
     obj = Training(config,  saved_model_folder, final_data_path, save_dir_path)
     obj.training_pipeline()

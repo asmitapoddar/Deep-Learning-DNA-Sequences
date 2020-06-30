@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+from collections import Counter
+
 
 class BaseModel(nn.Module):
     """
@@ -40,7 +42,7 @@ def string_metadata(config):
     s = config['EXP_NAME'] + '_' + config['MODEL_NAME'] + '['
     s += str(config['MODEL']['embedding_dim']) + ',' + str(config['MODEL']['hidden_dim']) + ',' + \
          str(config['MODEL']['hidden_layers']) + ',' + str(config['MODEL']['output_dim']) + ']'
-    s += '_BS' + str(config['DATA']['BATCH_SIZE'])
+    s += '_BS' + str(config['DATA']['BATCH_SIZE']) + '_' + config['OPTIMIZER']['type']
     return s
 
 def create_train_val_split(split, n_samples):
@@ -68,3 +70,16 @@ def create_train_val_split(split, n_samples):
     valid_idx = idx_full[0:len_valid]
     train_idx = np.delete(idx_full, np.arange(0, len_valid))
     return train_idx, valid_idx
+
+def get_class_dist(classes, dataset_type):
+    '''
+    Get ditribution of classes in data set
+    :param classes: list - list of labels
+    :param dataset_type: str - 'train'/'val'
+    :return: str - string containing the class dist. for the dataset
+    '''
+    class_count = Counter(classes)
+    s = 'Dist. of classes for {:s} set: {}'.format(dataset_type, class_count)
+    return s
+
+

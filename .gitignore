@@ -1,11 +1,21 @@
 .DS_Store
 .ipynb_checkpoints
 .idea/
+__pycache__/
 
 # Big Data files
 *.gtf
 *.fa.gz
+*.fa
+
+# Models
+*.h5
+saved_models/
+runs/
 
 # Don't track content of these folders
 discarded/
 venv/
+MNIST/
+samtools-1.10/
+Misc/
