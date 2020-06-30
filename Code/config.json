@@ -1,5 +1,5 @@
 {
-    "EXP_NAME": "Run1",
+    "EXP_NAME": "Run4_start_n50_l100_200",
     "DATASET_TYPE": "classification",
     "MODEL_NAME": "SimpleLSTM",
     "LOSS": "CrossEntropyLoss",
@@ -8,7 +8,7 @@
     "DATA":
     {
         "DATALOADER": "SequenceDataLoader",
-        "DATA_DIR": "/threeclass",
+        "DATA_DIR": "/start_n50_l100",
         "BATCH_SIZE": 32,
         "SHUFFLE": true,
         "VALIDATION_SPLIT": 0.1,
@@ -19,14 +19,14 @@
     {
         "embedding_dim": 4,
         "hidden_dim": 128,
-        "hidden_layers": 3,
+        "hidden_layers": 1,
         "output_dim": 3
     },
 
     "OPTIMIZER":
     {
         "type": "Adam",
-        "lr": 0.001,
+        "lr": 0.00001,
         "weight_decay": 0,
         "amsgrad": true
     },
@@ -41,11 +41,12 @@
     "TRAINER":
     {
         "epochs": 1,
+        "save_model_to_dir": false,
         "save_dir": "/saved_models",
-        "save_period": 1,
+        "save_period": 30,
         "verbosity": 2,
         "monitor": "min val_loss",
         "early_stop": 10,
-        "tensorboard": true
+        "tensorboard": false
     }
 }

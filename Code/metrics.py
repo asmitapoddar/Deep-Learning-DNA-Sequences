@@ -23,7 +23,7 @@ def pred_from_raw(raw):
 
 def metrics_classification(raw, y_true, avg):
     pred = pred_from_raw(raw)
-    print(pred)
+    print('Pred labels', pred)
     f1 = metrics.f1_score(pred, y_true.numpy(), average=avg, zero_division=0)
     prec = metrics.precision_score(pred, y_true.numpy(), average=avg, zero_division=0)
     rec = metrics.recall_score(pred, y_true.numpy(), average=avg, zero_division=0)
@@ -33,6 +33,14 @@ def metrics_classification(raw, y_true, avg):
 def accuracy_from_raw(raw, y_true):
     acc =  metrics.accuracy_score(pred_from_raw(raw), y_true.numpy())
     return acc
+
+
+#todo: get confusion martix
+def update_key(raw, y_true, key):
+    if key == 'conf_mat':
+        pred = pred_from_raw(raw)
+        conf_mat = metrics.confusion_matrix(y_true, pred, labels=[0, 1, 2])
+    return conf_mat
 
 class Metrics():
     '''
