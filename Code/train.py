@@ -32,8 +32,14 @@ class Training():
         self.load_dir = load_dir
 
         self.start_epoch = start_epoch
-        self.model = None
-        self.optimizer = None
+        self.model = eval(config['MODEL_NAME'])(config['MODEL']['embedding_dim'], config['MODEL']['hidden_dim'],
+                                                config['MODEL']['hidden_layers'], config['MODEL']['output_dim'],
+                                                config['DATA']['BATCH_SIZE'], self.device)
+        self.optimizer = getattr(optim, config['OPTIMIZER']['type']) \
+            (self.model.parameters(), lr=config['OPTIMIZER']['lr'], weight_decay=config['OPTIMIZER']['weight_decay'])
+        self.scheduler = getattr(optim.lr_scheduler, config['LR_SCHEDULER']['type']) \
+            (self.optimizer, step_size=config['LR_SCHEDULER']['step_size'],
+             gamma=self.config['LR_SCHEDULER']['gamma'])
         self.trainloader = None
         self.writer = {'train': None, 'val': None}  # For TensorBoard
 
@@ -122,9 +128,12 @@ class Training():
         log_file.close()
 
     def write_model_loss_metrics(self, epoch, loss, task):
+        '''
+        Write loss and task metrics to file
+        '''
         log_file = open(self.save_dir + '/info.log', "a+")
         log_file.write('\nEpoch: {:d} ----- {:s} ------'.format(epoch, task.upper()))
-        log_file.write('\nTrain Loss: {:.4f}, '.format(loss) + str(self.metrics[task]))
+        log_file.write('\n{:s} loss: {:.4f}, '.format(task, loss) + str(self.metrics[task]))
         if task == 'val':
             log_file.write('\n')
         log_file.close()
@@ -199,33 +208,33 @@ class Training():
         '''
 
         # INPUT DATA
-        trainset = SequenceDataset(x_train[0:10], y_train[0:10])  # NOTE: change input dataset size here if required
+        trainset = SequenceDataset(x_train, y_train)  # NOTE: change input dataset size here if required
         self.trainloader = torch.utils.data.DataLoader(
                         trainset, batch_size=self.config['DATA']['BATCH_SIZE'],
                         shuffle=self.config['DATA']['SHUFFLE'], num_workers=self.config['DATA']['NUM_WORKERS'])
 
         # MODEL
-        self.model = eval(self.config['MODEL_NAME'])(self.config['MODEL']['embedding_dim'], self.config['MODEL']['hidden_dim'],
-                                                self.config['MODEL']['hidden_layers'], self.config['MODEL']['output_dim'],
-                                                self.config['DATA']['BATCH_SIZE'], self.device)
+        # self.model = SimpleLSTM(4,128,3,3)   [for eg.]
         self.model.to(self.device)
 
         # LOSS FUNCTION
         loss_fn = getattr(nn, self.config['LOSS'])()  # For eg: nn.CrossEntropyLoss()
 
-        # OPTIMISER  #todo: read from config file
-        # optimiser = optim.SGD(model.parameters(), momentum=0.9, lr=0.001)
-        self.optimizer = optim.RMSprop(self.model.parameters(), lr=0.1)
+        # OPTIMISER
+        # self.optimiser = optim.SGD(model.parameters(), momentum=0.9, lr=0.001)  # [for eg.] (or Adam)
 
+        # METRICS
         avg_train_loss = 0
         m = Metrics(self.config['DATASET_TYPE'])   #m.metrics initialised to {0,0,0}
         self.metrics['train'] = m.metrics
 
         # FOR EACH BATCH
         for bnum, sample in tqdm(enumerate(self.trainloader)):
+
             self.model.train()
             self.model.zero_grad()
             print('Train batch: ', bnum)
+            print('True labels', sample[1])
             raw_out = self.model.forward(sample[0].to(self.device))
             loss = loss_fn(raw_out, sample[1].long().to(self.device))
             #print('Loss: ', loss)
@@ -313,10 +322,15 @@ class Training():
 
             epoch_tic = time.time()
             train_loss = self.train_one_epoch(epoch, x_train, y_train)
+
             if self.config['VALIDATION']:
                 val_loss = self.val_one_epoch(epoch, x_val, y_val)
+            if self.config['LR_SCHEDULER']['apply']:
+                self.scheduler.step()
+
             epoch_toc = time.time()
             epoch_time = epoch_toc - epoch_tic
+
             print("******************* Epoch %i completed in %i seconds ********************" % (epoch, epoch_time))
 
             # Writing to be done in the first epoch
