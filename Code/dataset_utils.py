@@ -300,16 +300,16 @@ def write_to_file(data, file_name):
         file.write("\n".join(str(item) for item in data))
     file.close()
 
-def sanity_check(dataset, intervals, columns, type, gene, intron_exon_boundary = None):
+def sanity_check(dataset, intervals, columns, dataset_class, gene, intron_exon_boundary = None):
     '''
     Create a data frame to be appended to main data frame for sanity check
     :param dataset: list of str: list of sequences
     :param intervals: list of intervals
     :param columns: list of str: column names
-    :param type: str: dataset type
+    :param dataset_class: str: dataset class ('Boundary'/'Exon'/'Intron')
     :return: Data frame
     '''
     return pd.DataFrame(
-        {columns[0]: [type] * len(dataset), columns[1]: dataset, columns[2]: intervals,
+        {columns[0]: [dataset_class] * len(dataset), columns[1]: dataset, columns[2]: intervals,
          columns[3]: [gene['gene_id']] * len(dataset), columns[4]: [gene['gene_strand']] * len(dataset),
          columns[5]: intron_exon_boundary})
