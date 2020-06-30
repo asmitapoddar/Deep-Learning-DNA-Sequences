@@ -8,6 +8,7 @@ import Bio
 curr_dir_path = str(pathlib.Path().absolute())
 data_path = curr_dir_path + "/Data/"
 
+
 def gene_start_end_positions(chrm_ann):
     '''
     Function to read annotation for given chromosome and get [start, end] base pair position of genes
@@ -119,11 +120,9 @@ def create_dict(chrm_seq, chrm_ann):
 
             list_transcript.update({'no_of_exons': int(len(exon_ranges))})
             exons = []
-            list_exon_range = {}
 
             for er in exon_ranges:
-                list_exon_range.update({'exon_ranges': er})
-                exons.append({'exon_ranges': er})
+                exons.append({'exons_ranges': er})
 
             list_transcript.update({'exons': exons})
             transcripts.append(list_transcript)
