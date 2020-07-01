@@ -81,27 +81,30 @@ class Training():
         :param resume_path: Checkpoint path to be resumed
         """
         resume_path = str(resume_path)
+        if not os.path.isfile(resume_path):
+            raise Exception("Failed to read path %s, aborting." % resume_path)
+            return
+
         print("Loading checkpoint: {} ...".format(resume_path))
         checkpoint = torch.load(resume_path)
         self.start_epoch = checkpoint['epoch'] + 1
         #self.mnt_best = checkpoint['monitor_best']
 
         # load architecture params from checkpoint.
-        if checkpoint['config']['arch'] != self.config['arch']:
-            self.logger.warning("Warning: Architecture configuration given in config file is different from that of "
-                                "checkpoint. This may yield an exception while state_dict is being loaded.")
+        assert checkpoint['config']['MODEL_NAME'] != self.config['MODEL_NAME'], \
+            "Warning: Architecture configuration given in config file is different from that of checkpoint. "
         self.model.load_state_dict(checkpoint['state_dict'])
 
         # load optimizer state from checkpoint only when optimizer type is not changed.
-        if checkpoint['config']['optimizer']['type'] != self.config['optimizer']['type']:
-            self.logger.warning("Warning: Optimizer type given in config file is different from that of checkpoint. "
+        if checkpoint['config']['OPTIMIZER']['type'] != self.config['OPTIMIZER']['type']:
+            print("Warning: Optimizer type given in config file is different from that of checkpoint. "
                                 "Optimizer parameters not being resumed.")
         else:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
 
-        self.logger.info("Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch))
+        print("Checkpoint loaded. Resume training from epoch {} ------".format(self.start_epoch))
 
-    def write_model_meta_data(self, y_train, y_val):  # todo might move to train_utils later
+    def write_model_meta_data(self, x_train, x_val, y_train, y_val):  # todo might move to train_utils later
         '''
         Write meta-info about model to file
         '''
@@ -111,7 +114,6 @@ class Training():
         with open(self.save_dir+'/config.json', 'w') as outfile1:
             json.dump(self.config, outfile1, indent = 4)
 
-
         log_file = open(self.save_dir + '/info.log', "w+")
         log_file.write(str(self.model))
         log_file.write('\nParameters Names & Shapes: ')
@@ -119,8 +121,8 @@ class Training():
             if param.requires_grad:
                 log_file.write('\n' + name + str(param.data.shape))
 
-        log_file.write('\nTraining Dataset Size: ' + str(len(y_train)))
-        log_file.write('\nValidation Dataset Size: ' + str(len(y_val)))
+        log_file.write('\nTraining Dataset Size: ' + str(x_train.shape))
+        log_file.write('\nValidation Dataset Size: ' + str(x_val.shape))
 
         log_file.write('\n' + get_class_dist(y_train, 'train'))
         log_file.write('\n' + get_class_dist(y_val, 'val') + '\n')
@@ -129,42 +131,15 @@ class Training():
 
     def write_model_loss_metrics(self, epoch, loss, task):
         '''
-        Write loss and task metrics to file
+        Write loss and task metrics to file (appending to meta-data info.log file)
         '''
         log_file = open(self.save_dir + '/info.log', "a+")
-        log_file.write('\nEpoch: {:d} ----- {:s} ------'.format(epoch, task.upper()))
+        log_file.write('\nEpoch: {:d} ------ {:s} ------'.format(epoch, task.upper()))
         log_file.write('\n{:s} loss: {:.4f}, '.format(task, loss) + str(self.metrics[task]))
         if task == 'val':
             log_file.write('\n')
         log_file.close()
 
-    '''
-    def load_saved_state(self, state_file_path):
-        global_step = 0
-        start_batch = 0
-        start_epoch = 0
-
-        # Continue training from a saved serialised model.
-        if state_file_path is not None:
-            if not os.path.isfile(state_file_path):
-                raise Exception("Failed to read path %s, aborting." % state_file_path)
-                return
-            state = torch.load(state_file_path)
-            if len(state) != 5:
-                raise Exception(
-                    "Invalid state read from path %s, aborting. State keys: %s" % (state_file_path, state.keys()))
-                return
-            #Todo: understand Also to this log file, write model name and parameters
-            global_step = state[SERIALISATION_KEY_GLOBAL_STEP]
-            start_epoch = state[SERIALISATION_KEY_EPOCH]
-            self.model.load_state_dict(state[SERIALISATION_KEY_MODEL])
-            self.optimizer.load_state_dict(state[SERIALISATION_KEY_OPTIM])
-
-            print("Loaded saved state successfully:")
-            print("- Upcoming epoch: %d." % start_epoch)
-            print("Resuming training...")
-            return global_step, start_batch, start_epoch
-    '''
 
     def logger(self, epoch, x_train, train_loss, val_loss):
         """
@@ -250,6 +225,7 @@ class Training():
         # EVALUATION METRICS PER EPOCH
         for measure in m.metrics:
             self.metrics['train'][measure] /= (bnum+1)
+        avg_train_loss /= (bnum+1)
 
         print('Epoch: {:d}, Train Loss: {:.4f}, '.format(epoch, avg_train_loss), self.metrics['train'])
         return avg_train_loss
@@ -288,6 +264,7 @@ class Training():
 
         for measure in m.metrics:
             self.metrics['val'][measure] /= (bnum+1)
+        avg_val_loss /= (bnum+1)
 
         print('Epoch: {:d}, Valid Loss: {:.4f}, '.format(epoch, avg_val_loss), self.metrics['val'])
         return avg_val_loss
@@ -302,10 +279,12 @@ class Training():
         print("Input data shape: ", encoded_seq.shape)
         y_label = np.loadtxt(self.data_path + '/y_label_start')
 
-        if self.config['VALIDATION']:
-            train_idx, val_idx = create_train_val_split(self.config['DATA']['VALIDATION_SPLIT'], n_samples=len(encoded_seq))
+        if self.config['VALIDATION']['apply']:
+            create_train_val_split = 'create_train_val_split_' + self.config['VALIDATION']['type']
+            train_idx, val_idx = eval(create_train_val_split)(self.config['VALIDATION']['val_split'],
+                                                                 n_samples=len(encoded_seq))
 
-            # Create train/validation split --
+            # Create train/validation split ------
             x_train = encoded_seq[np.ix_(train_idx)] #replace `train_idx` by `np.arange(len(encoded_seq))` to use whole dataset
             y_train = y_label[np.ix_(train_idx)]
             x_val = encoded_seq[np.ix_(val_idx)]
@@ -317,13 +296,16 @@ class Training():
         print(get_class_dist(y_train, 'train'))
         print(get_class_dist(y_val, 'val'))
 
+        self.write_model_meta_data(x_train, x_val, y_train, y_val)
+        print(x_train.shape)
+
         for epoch in range(self.start_epoch, self.config['TRAINER']['epochs']):
             print("Training Epoch %i -------------------" % epoch)
 
             epoch_tic = time.time()
             train_loss = self.train_one_epoch(epoch, x_train, y_train)
 
-            if self.config['VALIDATION']:
+            if self.config['VALIDATION']['apply']:
                 val_loss = self.val_one_epoch(epoch, x_val, y_val)
             if self.config['LR_SCHEDULER']['apply']:
                 self.scheduler.step()
@@ -335,12 +317,10 @@ class Training():
 
             # Writing to be done in the first epoch
             if self.config['TRAINER']["save_model_to_dir"]:
-                if epoch==0:
-                    self.write_model_meta_data(y_train, y_val)
 
                 # SAVE TRAINING DETAILS TO INFO LOG
                 self.write_model_loss_metrics(epoch, train_loss, 'train')
-                if self.config['VALIDATION']:
+                if self.config['VALIDATION']['apply']:
                     self.write_model_loss_metrics(epoch, val_loss, 'val')
 
                 # SAVE TO CHECKPOINT TO DIRECTORY
@@ -349,7 +329,7 @@ class Training():
 
             # TENSORBOARD LOGGING
             if self.config['TRAINER']['tensorboard']:
-                if not self.config['VALIDATION']:
+                if not self.config['VALIDATION']['apply']:
                     val_loss = 0.0
                 self.logger(epoch, x_train, train_loss, val_loss)
                 # write to runs folder (create a model file name, and write the various training runs in it

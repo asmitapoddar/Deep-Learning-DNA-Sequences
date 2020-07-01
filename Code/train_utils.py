@@ -71,6 +71,61 @@ def create_train_val_split(split, n_samples):
     train_idx = np.delete(idx_full, np.arange(0, len_valid))
     return train_idx, valid_idx
 
+def create_train_val_split_mixed(split, n_samples):
+    '''
+    Create train/val data splits such that the sequences from the same exon/intron/containing same boundary
+    are mixed between the train and val set
+    :param split: float: proportion of the dataset to be used for validation
+    :param n_samples: int: total length of dataset
+    :return: 2 list of int
+        train_idx - indices to be used to splice out the train set
+        valid_idx - indices to be used to splice out the val set
+    '''
+    idx_full = np.arange(n_samples)
+    if split == 0.0:
+        return idx_full, None
+
+    np.random.seed(0)
+    np.random.shuffle(idx_full)
+
+    if isinstance(split, int):
+        assert split > 0
+        assert split < n_samples, "validation set size is configured to be larger than entire dataset; " \
+                                  "entire dataset will be used for validation"
+        len_valid = split
+    else:
+        len_valid = int(n_samples * split)
+
+    valid_idx = idx_full[0:len_valid]
+    train_idx = np.delete(idx_full, np.arange(0, len_valid))
+    return train_idx, valid_idx
+
+def create_train_val_split_separate(split, n_samples):
+    '''
+    Create train/val data splits such that the sequences from the same exon/intron/containing same boundary
+    are NOT mixed between the train and val set
+    :param split: float: proportion of the dataset to be used for validation
+    :param n_samples: int: total length of dataset
+    :return: 2 list of int
+        train_idx - indices to be used to splice out the train set
+        valid_idx - indices to be used to splice out the val set
+    '''
+    idx_full = np.arange(n_samples)
+    if split == 0.0:
+        return idx_full, None
+
+    if isinstance(split, int):
+        assert split > 0
+        assert split < n_samples, "validation set size is configured to be larger than entire dataset; " \
+                                  "entire dataset will be used for validation"
+        len_valid = split
+    else:
+        len_valid = int(n_samples * split)
+
+    valid_idx = idx_full[0:len_valid]
+    train_idx = np.delete(idx_full, np.arange(0, len_valid))
+    return train_idx, valid_idx
+
 def get_class_dist(classes, dataset_type):
     '''
     Get ditribution of classes in data set
