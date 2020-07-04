@@ -126,6 +126,47 @@ def create_train_val_split_separate(split, n_samples):
     train_idx = np.delete(idx_full, np.arange(0, len_valid))
     return train_idx, valid_idx
 
+
+def create_train_val_split_mixed_Kfold(n_samples, k, K):
+    '''
+    Create train/val data splits such that the sequences from the same exon/intron/containing same boundary
+    are mixed between the train and val set
+    :param k: int: current validation fold (not used in this function)
+    :param K: int: Total number of validation folds
+    :param n_samples: int: total length of dataset
+    :return: 2 list of int
+        train_idx - indices to be used to splice out the train set
+        valid_idx - indices to be used to splice out the val set
+    '''
+    idx_full = np.arange(n_samples)
+    np.random.shuffle(idx_full)
+    len_valid = int(n_samples * 1/K)
+
+    valid_idx = idx_full[0:len_valid]
+    train_idx = np.delete(idx_full, np.arange(0, len_valid))
+    return train_idx, valid_idx
+
+def create_train_val_split_separate_Kfold(n_samples, k, K):
+    '''
+    Create train/val data splits such that the sequences from the same exon/intron/containing same boundary
+    are NOT mixed between the train and val set
+    :param n_samples: int: total length of dataset
+    :param k: int: current validation fold
+    :param K: int: Total number of validation folds
+    :return: 2 list of int
+        train_idx - indices to be used to splice out the train set
+        valid_idx - indices to be used to splice out the val set
+    '''
+    idx_full = np.arange(n_samples)
+    len_valid = int(n_samples * k / K)
+    split_size = int(n_samples * 1 / K)
+
+    valid_idx = idx_full[len_valid-split_size:len_valid]
+    train_idx = [e for e in idx_full if e not in valid_idx]
+
+    return train_idx, valid_idx
+
+
 def get_class_dist(classes, dataset_type):
     '''
     Get ditribution of classes in data set
