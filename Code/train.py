@@ -63,12 +63,12 @@ class Training():
             #'monitor_best': self.mnt_best,
             'config': self.config
         }
-
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
-        filename = self.save_dir + str('/checkpoint-epoch{}.pth'.format(epoch))
-        torch.save(state, filename)
-        print("Saving checkpoint: {} ...".format(filename))
+        if not save_best:
+            filename = self.save_dir + str('/checkpoint-epoch{}.pth'.format(epoch))
+            torch.save(state, filename)
+            print("Saving checkpoint: {} ...".format(filename))
         if save_best:
             best_path = str(self.save_dir + 'model_best.pth')
             torch.save(state, best_path)
@@ -140,7 +140,6 @@ class Training():
             log_file.write('\n')
         log_file.close()
 
-
     def logger(self, epoch, x_train, train_loss, val_loss):
         """
         Write to TensorBoard
@@ -209,7 +208,7 @@ class Training():
             self.model.train()
             self.model.zero_grad()
             print('Train batch: ', bnum)
-            print('True labels', sample[1])
+            #print('True labels', sample[1])
             raw_out = self.model.forward(sample[0].to(self.device))
             loss = loss_fn(raw_out, sample[1].long().to(self.device))
             #print('Loss: ', loss)
@@ -217,7 +216,8 @@ class Training():
             self.optimizer.step()
 
             # EVALUATION METRICS PER BATCH
-            metrics_for_batch = m.get_metrics(raw_out.detach().clone(), sample[1].detach().clone(), 'macro')  # todo: understand 'macro'
+            metrics_for_batch, pred = m.get_metrics(raw_out.detach().clone(), sample[1].detach().clone(), 'macro')  # todo: understand 'macro'
+            #print('Predicted labels', pred)
             for key,value in metrics_for_batch.items():
                 self.metrics['train'][key] += value
             avg_train_loss += loss.item()
@@ -257,7 +257,7 @@ class Training():
             loss = loss_fn(raw_out, sample[1].long().to(self.device))
 
             # EVALUATION METRICS PER BATCH
-            metrics_for_batch = m.get_metrics(raw_out.detach().clone(), sample[1].detach().clone(), 'macro')
+            metrics_for_batch, pred = m.get_metrics(raw_out.detach().clone(), sample[1].detach().clone(), 'macro')
             for key, value in metrics_for_batch.items():
                 self.metrics['val'][key] += value
             avg_val_loss += loss.item()
@@ -298,6 +298,7 @@ class Training():
 
         self.write_model_meta_data(x_train, x_val, y_train, y_val)
         print(x_train.shape)
+        min_val_loss = 9999999  # For early stopping calculation
 
         for epoch in range(self.start_epoch, self.config['TRAINER']['epochs']):
             print("Training Epoch %i -------------------" % epoch)
@@ -333,6 +334,21 @@ class Training():
                     val_loss = 0.0
                 self.logger(epoch, x_train, train_loss, val_loss)
                 # write to runs folder (create a model file name, and write the various training runs in it
+
+            # EARLY STOPPING
+            if val_loss < min_val_loss:
+                # Save the model
+                self.save_checkpoint(epoch=epoch, save_best=True)
+                torch.save(self.model, self.save_dir + '/best_model_' + self.model_name_save_dir)
+                epochs_no_improve = 0
+                min_val_loss = val_loss
+            else:
+                epochs_no_improve += 1
+                print(epochs_no_improve)
+            if epoch > 10 and epochs_no_improve == self.config['TRAINER']['early_stop']:
+                print('Early stopping!')
+                print("Stopped after {:d} epochs".format(epoch))
+                break
 
         # SAVE MODEL TO DIRECTORY
         if self.config['TRAINER']["save_model_to_dir"]:
