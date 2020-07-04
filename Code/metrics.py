@@ -14,7 +14,7 @@ def metrics_regression(raw, y_true):
     mae = metrics.mean_absolute_error(y_true.numpy(), y_pred)
     mse = metrics.mean_squared_error(y_true.numpy(), y_pred)
     r2_score = metrics.r2_score(y_true.numpy(), y_pred)
-    return mse, mae, r2_score
+    return mse, mae, r2_score, y_pred
 
 def pred_from_raw(raw):
     pred = torch.argmax(torch.softmax(raw, dim=1), dim=1).cpu().numpy()
@@ -23,11 +23,10 @@ def pred_from_raw(raw):
 
 def metrics_classification(raw, y_true, avg):
     pred = pred_from_raw(raw)
-    print('Pred labels', pred)
     f1 = metrics.f1_score(pred, y_true.numpy(), average=avg, zero_division=0)
     prec = metrics.precision_score(pred, y_true.numpy(), average=avg, zero_division=0)
     rec = metrics.recall_score(pred, y_true.numpy(), average=avg, zero_division=0)
-    return f1, prec, rec
+    return f1, prec, rec, pred
 
 
 def accuracy_from_raw(raw, y_true):
@@ -57,15 +56,15 @@ class Metrics():
     def get_metrics(self, raw, y_true, avg=None):
 
         if (self.dataset_type == 'regression'):
-            mse, mae, r2_score = metrics_regression(raw, y_true)
+            mse, mae, r2_score, pred = metrics_regression(raw, y_true)
             self.metrics = {'mse': mse, 'mae': mae, 'r2_score': r2_score}
-            return self.metrics
+            return self.metrics, pred
 
         if (self.dataset_type == 'classification'):
-            f1, prec, recall = metrics_classification(raw, y_true, avg)
+            f1, prec, recall, pred = metrics_classification(raw, y_true, avg)
             acc = accuracy_from_raw(raw, y_true)
             self.metrics = {'prec': prec, 'recall': recall, 'f1': f1, 'acc': acc}
-            return self.metrics
+            return self.metrics, pred
 
 
 
