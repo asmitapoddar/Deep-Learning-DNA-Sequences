@@ -3,33 +3,35 @@ import os
 import shutil
 import numpy as np
 import pandas as pd
-from models import *
-from metrics import *
 import time
 import datetime
+import json
+import pathlib
+import yaml
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
 import torch.utils.tensorboard as tb
-import json
-import pathlib
-import time
+
 from train_utils import *
+from models import *
+from metrics import *
 
 curr_dir_path = str(pathlib.Path().absolute())
 data_path = curr_dir_path + "/Data/"
 
 class Training():
 
-    def __init__(self, config, model_name_save_dir, data_path='', save_dir = '', load_dir=None, start_epoch=0):
+    def __init__(self, config, model_name_save_dir, data_path='', save_dir = '', tb_path = '', start_epoch=0):
         self.config = config
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda:7' if torch.cuda.is_available() else 'cpu')
 
         self.data_path = data_path
         self.save_dir = save_dir
-        self.load_dir = load_dir
+        self.tb_path = tb_path
 
         self.start_epoch = start_epoch
         self.model = eval(config['MODEL_NAME'])(config['MODEL']['embedding_dim'], config['MODEL']['hidden_dim'],
@@ -53,7 +55,7 @@ class Training():
 
         :param epoch: current epoch number
         :param log: logging information of the epoch
-        :param save_best: if True, rename the saved checkpoint to 'model_best.pth'
+        :param save_best: if True, rename the saved checkpoint to 'checkpoint_best.pth'
         """
         state = {
             #'arch': arch,
@@ -70,9 +72,9 @@ class Training():
             torch.save(state, filename)
             print("Saving checkpoint: {} ...".format(filename))
         if save_best:
-            best_path = str(self.save_dir + 'model_best.pth')
+            best_path = str(self.save_dir + '/best_checkpoint.pth')
             torch.save(state, best_path)
-            print("Saving current best: model_best.pth ...")
+            print("Saving current best: best_checkpoint.pth ...")
 
     def resume_checkpoint(self, resume_path):
         """
@@ -111,6 +113,7 @@ class Training():
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
 
+        print('self.save_dir', self.save_dir)
         with open(self.save_dir+'/config.json', 'w') as outfile1:
             json.dump(self.config, outfile1, indent = 4)
 
@@ -147,13 +150,12 @@ class Training():
         #Writing to be done in the first epoch
         print('Epoch in TensorBoard:', epoch)
         if epoch==0:
-            tb_path = './runs/' + self.model_name_save_dir
             print('tb_path', tb_path)
-            if os.path.isdir(tb_path):
-                shutil.rmtree(tb_path)
+            if os.path.isdir(self.tb_path):
+                shutil.rmtree(self.tb_path)
 
-            self.writer['train'] = tb.SummaryWriter(log_dir=tb_path+'/train')
-            self.writer['val'] = tb.SummaryWriter(log_dir=tb_path + '/val')
+            self.writer['train'] = tb.SummaryWriter(log_dir=self.tb_path+'/train')
+            self.writer['val'] = tb.SummaryWriter(log_dir=self.tb_path + '/val')
             sample_data = iter(self.trainloader).next()[0]  # [batch_size X seq_length X embedding_dim]
             print(sample_data.shape)
             self.writer['train'].add_graph(self.model, sample_data.to(self.device))
@@ -208,16 +210,21 @@ class Training():
             self.model.train()
             self.model.zero_grad()
             print('Train batch: ', bnum)
-            #print('True labels', sample[1])
+            print('True labels', sample[1])
             raw_out = self.model.forward(sample[0].to(self.device))
-            loss = loss_fn(raw_out, sample[1].long().to(self.device))
+
+            labels = sample[1].long()
+            if self.config['DATASET_TYPE']=='regression':
+                raw_out = raw_out.reshape(-1)
+                labels = sample[1].float()
+            loss = loss_fn(raw_out, labels.to(self.device))
             #print('Loss: ', loss)
             loss.backward()
             self.optimizer.step()
 
             # EVALUATION METRICS PER BATCH
             metrics_for_batch, pred = m.get_metrics(raw_out.detach().clone(), sample[1].detach().clone(), 'macro')  # todo: understand 'macro'
-            #print('Predicted labels', pred)
+            print('Predicted labels', pred)
             for key,value in metrics_for_batch.items():
                 self.metrics['train'][key] += value
             avg_train_loss += loss.item()
@@ -254,7 +261,11 @@ class Training():
             print('Val batch: ', bnum)
             self.model.eval()
             raw_out = self.model.forward(sample[0].to(self.device))
-            loss = loss_fn(raw_out, sample[1].long().to(self.device))
+            labels = sample[1].long()
+            if self.config['DATASET_TYPE'] == 'regression':
+                raw_out = raw_out.reshape(-1)
+                labels = sample[1].float() #need to change labels type for classification/regression
+            loss = loss_fn(raw_out, labels.to(self.device))
 
             # EVALUATION METRICS PER BATCH
             metrics_for_batch, pred = m.get_metrics(raw_out.detach().clone(), sample[1].detach().clone(), 'macro')
@@ -339,12 +350,11 @@ class Training():
             if val_loss < min_val_loss:
                 # Save the model
                 self.save_checkpoint(epoch=epoch, save_best=True)
-                torch.save(self.model, self.save_dir + '/best_model_' + self.model_name_save_dir)
+                torch.save(self.model, self.save_dir + '/best_model')
                 epochs_no_improve = 0
                 min_val_loss = val_loss
             else:
                 epochs_no_improve += 1
-                print(epochs_no_improve)
             if epoch > 10 and epochs_no_improve == self.config['TRAINER']['early_stop']:
                 print('Early stopping!')
                 print("Stopped after {:d} epochs".format(epoch))
@@ -367,10 +377,16 @@ if __name__ == "__main__":
     with open(curr_dir_path + "/config.json", encoding='utf-8', errors='ignore') as json_data:
         config = json.load(json_data, strict=False)
 
+    #Get System-specific Params file
+    with open('system_specific_params.yaml', 'r') as params_file:
+        sys_params = yaml.load(params_file)
+
     final_data_path = data_path+chrm+config['DATASET_TYPE']+config["DATA"]["DATA_DIR"]
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('_%d-%m_%H:%M')
-    saved_model_folder = string_metadata(config) + timestamp
-    save_dir_path = curr_dir_path + config['TRAINER']['save_dir'] + '/'+ saved_model_folder
+    model_name_save_dir = string_metadata(config) + timestamp
 
-    obj = Training(config,  saved_model_folder, final_data_path, save_dir_path)
+    save_dir_path = sys_params['LOGS_BASE_FOLDER'] + '/'+ model_name_save_dir
+    tb_path = sys_params['RUNS_BASE_FOLDER'] + '/' + model_name_save_dir
+
+    obj = Training(config, model_name_save_dir, final_data_path, save_dir_path, tb_path)
     obj.training_pipeline()
