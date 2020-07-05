@@ -3,6 +3,8 @@ import pathlib
 
 curr_dir_path = str(pathlib.Path().absolute())
 data_path = curr_dir_path + "/Data/"
+DATASET_TYPE = 'regression'
+write_path = data_path + 'chrm21/' + DATASET_TYPE + '/cds_start_n875_l100/'
 
 def encode(seq):
 
@@ -40,13 +42,13 @@ def encode(seq):
 
     return encoded_seq
 
-def main():
+def encode_seq(write_path):
     
     i = 0
  
-    encoded_f = open(data_path+'encoded_seq', 'w')
+    encoded_f = open(write_path+'/encoded_seq', 'w')
                     
-    seq_file=open(data_path+'dna_seq_start').read().splitlines()
+    seq_file=open(write_path+'/dna_seq_start').read().splitlines()
     for line in seq_file:
         seq = line
         encoded_seq = encode(seq)
