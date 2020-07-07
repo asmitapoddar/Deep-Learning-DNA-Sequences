@@ -113,7 +113,6 @@ class Training():
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
 
-        print('self.save_dir', self.save_dir)
         with open(self.save_dir+'/config.json', 'w') as outfile1:
             json.dump(self.config, outfile1, indent = 4)
 
@@ -141,6 +140,18 @@ class Training():
         log_file.write('\n{:s} loss: {:.4f}, '.format(task, loss) + str(self.metrics[task]))
         if task == 'val':
             log_file.write('\n')
+        log_file.close()
+
+    def write_best_metrics(self, metrics, train_loss, val_loss):
+        log_file = open(self.save_dir + '/info.log', "a+")
+        log_file.write('\nBest Metrics for model -------')
+        # Rounding the metrics for writing-
+        for task in metrics:
+            for key, value in metrics[task].items():
+                metrics[task][key] = np.round(metrics[task][key], 4)
+        log_file.write('\nMetrics: ' + str(metrics))
+        log_file.write('\nTrain loss: {:.4f}'.format(train_loss))
+        log_file.write('\nVal loss: {:.4f}'.format(val_loss))
         log_file.close()
 
     def logger(self, epoch, x_train, train_loss, val_loss):
@@ -201,7 +212,7 @@ class Training():
 
         # METRICS
         avg_train_loss = 0
-        m = Metrics(self.config['DATASET_TYPE'])   #m.metrics initialised to {0,0,0}
+        m = Metrics(self.config['TASK_TYPE'])   #m.metrics initialised to {0,0,0}
         self.metrics['train'] = m.metrics
 
         # FOR EACH BATCH
@@ -214,11 +225,10 @@ class Training():
             raw_out = self.model.forward(sample[0].to(self.device))
 
             labels = sample[1].long()
-            if self.config['DATASET_TYPE']=='regression':
+            if self.config['TASK_TYPE']=='regression':
                 raw_out = raw_out.reshape(-1)
                 labels = sample[1].float()
             loss = loss_fn(raw_out, labels.to(self.device))
-            #print('Loss: ', loss)
             loss.backward()
             self.optimizer.step()
 
@@ -252,7 +262,7 @@ class Training():
                     valset, batch_size=self.config['DATA']['BATCH_SIZE'],
                     shuffle=self.config['DATA']['SHUFFLE'], num_workers=self.config['DATA']['NUM_WORKERS'])
 
-        m = Metrics(self.config['DATASET_TYPE'])  # m.metrics initialised to {0,0,0}
+        m = Metrics(self.config['TASK_TYPE'])  # m.metrics initialised to {0,0,0}
         self.metrics['val'] = m.metrics
         loss_fn =  getattr(nn, self.config['LOSS'])()
         avg_val_loss = 0
@@ -262,7 +272,7 @@ class Training():
             self.model.eval()
             raw_out = self.model.forward(sample[0].to(self.device))
             labels = sample[1].long()
-            if self.config['DATASET_TYPE'] == 'regression':
+            if self.config['TASK_TYPE'] == 'regression':
                 raw_out = raw_out.reshape(-1)
                 labels = sample[1].float() #need to change labels type for classification/regression
             loss = loss_fn(raw_out, labels.to(self.device))
@@ -309,7 +319,7 @@ class Training():
 
         self.write_model_meta_data(x_train, x_val, y_train, y_val)
         print(x_train.shape)
-        min_val_loss = 9999999  # For early stopping calculation
+        min_val_loss, best_train_loss, best_metrics = 99999999, None, None  # For early stopping calculation
 
         for epoch in range(self.start_epoch, self.config['TRAINER']['epochs']):
             print("Training Epoch %i -------------------" % epoch)
@@ -353,6 +363,8 @@ class Training():
                 torch.save(self.model, self.save_dir + '/best_model')
                 epochs_no_improve = 0
                 min_val_loss = val_loss
+                best_metrics = self.metrics
+                best_train_loss = train_loss
             else:
                 epochs_no_improve += 1
             if epoch > 10 and epochs_no_improve == self.config['TRAINER']['early_stop']:
@@ -364,6 +376,7 @@ class Training():
         if self.config['TRAINER']["save_model_to_dir"]:
             print('Saving model at ', self.save_dir)
             torch.save(self.model, self.save_dir+'/trained_model_'+self.model_name_save_dir)
+            self.write_best_metrics(best_metrics, best_train_loss, min_val_loss)
 
         if self.config['TRAINER']['tensorboard']:
             self.writer['train'].close()
@@ -381,14 +394,15 @@ if __name__ == "__main__":
     with open('system_specific_params.yaml', 'r') as params_file:
         sys_params = yaml.load(params_file)
 
-    final_data_path = data_path+chrm+config['DATASET_TYPE']+config["DATA"]["DATA_DIR"]
+    final_data_path = sys_params['DATA_WRITE_FOLDER']+'/'+chrm+config['DATASET_TYPE']+config["DATA"]["DATA_DIR"]
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('_%d-%m_%H:%M')
     model_name_save_dir = string_metadata(config) + timestamp
 
     save_dir_path = sys_params['LOGS_BASE_FOLDER'] + '/'+ model_name_save_dir
     tb_path = sys_params['RUNS_BASE_FOLDER'] + '/' + model_name_save_dir
 
-    print(final_data_path)
+    config['TRAINER']['save_dir'] = save_dir_path
+    config['TRAINER']['tb_path'] = tb_path
     obj = Training(config, model_name_save_dir, final_data_path, save_dir_path, tb_path)
     obj.training_pipeline()
 
