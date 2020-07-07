@@ -1,9 +1,9 @@
 import pathlib
 import pandas as pd
 import os
-import json
 import itertools
 import tqdm
+import yaml
 from dataset_utils import *
 from encode import *
 from generate_dataset_types import *
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     EXON_BOUNDARY = 'start'  # or 'end'
     DATASET_TYPE = 'boundaryCertainPoint_orNot_2classification'  # 'classification'  # or 'regression'
     SEQ_TYPE = 'cds'  # 'cds'/'exons'
-    NO_OF_GENES = 5
+    #NO_OF_GENES = 3
 
     WRITE_DATA_TO_FILE = True
 
@@ -187,7 +187,10 @@ if __name__ == "__main__":
     SANITY_CHECK = True # For Wilfred
     META_DATA = False  # For Upamanyu
 
-    file = data_path + "chr21_" + SEQ_TYPE + "_data.json"
+    with open('system_specific_params.yaml', 'r') as params_file:
+        sys_params = yaml.load(params_file)
+
+    file = sys_params['DATA_READ_FOLDER'] + "/chr21_" + SEQ_TYPE + "_data.json"
     with open(file, "r") as f:
         dataset = json.load(f)
 
@@ -195,11 +198,11 @@ if __name__ == "__main__":
 
     if DATASET_TYPE == 'boundaryCertainPoint_orNot_2classification':
         NO_OFFSETS_PER_EXON = 1
-        OFFSET_RANGE = [1,1]   #Note: Change boundary point here
+        OFFSET_RANGE = [99,99]   #Note: Change boundary point here
         assert NO_OFFSETS_PER_EXON == 1
         assert OFFSET_RANGE[0] == OFFSET_RANGE[1]
 
-    WRITE_TO_FILE_PATH = data_path + 'chrm21' + '/' + str(DATASET_TYPE) + '/' + SEQ_TYPE + '_' + \
+    WRITE_TO_FILE_PATH = sys_params['DATA_WRITE_FOLDER'] + '/chrm21' + '/' + str(DATASET_TYPE) + '/' + SEQ_TYPE + '_' + \
                          str(EXON_BOUNDARY) + '_n' + str(NO_OF_GENES) + '_l' + str(MAX_LENGTH) + \
                          '_o' + str(OFFSET_RANGE[0])
 
