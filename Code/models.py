@@ -4,6 +4,18 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 
+class BaseModel(nn.Module):
+    """
+    Base class for all models
+    """
+    def __str__(self):
+        """
+        Model prints with number of trainable parameters
+        """
+        model_parameters = filter(lambda p: p.requires_grad, self.parameters())
+        params = sum([np.prod(p.size()) for p in model_parameters])
+        return super().__str__() + '\nTrainable parameters: {}'.format(params)
+
 class BasicNN(nn.Module):
 
     def __init__(self, inp, h, d, out):
@@ -29,7 +41,7 @@ class BasicNN(nn.Module):
         return X
 
 
-class SimpleLSTM(nn.Module):
+class SimpleLSTM(BaseModel):
 
     def __init__(self, input_dims, hidden_units, hidden_layers, out, batch_size, device):
         super(SimpleLSTM, self).__init__()
@@ -61,5 +73,4 @@ class SimpleLSTM(nn.Module):
                                                     # pass batch_size as a parameter incase of incomplete batch
         lstm_out, (h_n, c_n) = self.lstm(input, hidden)
         raw_out = self.output_layer(h_n[-1])
-
         return raw_out

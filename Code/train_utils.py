@@ -85,7 +85,7 @@ def create_train_val_split_mixed(split, n_samples):
     if split == 0.0:
         return idx_full, None
 
-    np.random.seed(0)
+    np.random.seed(0)  # For reproducibility
     np.random.shuffle(idx_full)
 
     if isinstance(split, int):
@@ -139,6 +139,7 @@ def create_train_val_split_mixed_Kfold(n_samples, k, K):
         valid_idx - indices to be used to splice out the val set
     '''
     idx_full = np.arange(n_samples)
+    np.random.seed(0)  # For reproducibility
     np.random.shuffle(idx_full)
     len_valid = int(n_samples * 1/K)
 
