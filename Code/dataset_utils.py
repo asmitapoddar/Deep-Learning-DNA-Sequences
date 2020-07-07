@@ -10,13 +10,12 @@ from heapq import merge
 import portion as P
 import random
 
-NO_OFFSETS_PER_EXON = 5
 WRITE_TO_FILE = False
 
 # fix random seeds for reproducibility --
 random.seed(123)
 
-#todo: create class with attributes and functions, so that the attributes do not need to be passed to individual functions
+#todo: create class with attributes and funcs, so that do not need to pass the attributes to individual funcs
 
 def convert_list_to_interval(data):
     '''
@@ -29,7 +28,7 @@ def convert_list_to_interval(data):
         res.append(P.closed(exon[0], exon[1]))
     return res
 
-def create_boundary_intervals(data, side, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSET_RANGE):  #NOTE: Using global variables
+def create_boundary_intervals(data, side, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSET_RANGE):
     '''
     Function to get a list of lists (list of ranges) and return a list of intervals
     Ex. Exon interval = [8,20]
@@ -43,7 +42,7 @@ def create_boundary_intervals(data, side, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSE
             res: list of intervals containing the sequence
             exon_boundary: list of int containing the exon_boundary points
     '''
-    # random.seed(1) # seed random number generator, used for de-bugging
+    # random.seed(1) # seed random number generator, used for de-bugging/reproducibility
     res = []
     exon_boundary = []
 
@@ -59,7 +58,14 @@ def create_boundary_intervals(data, side, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSE
             if side == 'end':
                 res.append(P.closed(exon[1] - exon_offset, exon[1] + intron_offset))
 
-            exon_boundary.append(intron_offset + 1)  # 1-indexed (the start of seq is at index 1)
+            '''
+            1 2 3 4 5 6 7 8 (9) 10 11 12    ()=exon boundary  
+                    - - - -  b  -  -
+                    0 1 2 3  4  5  6    = seq
+            if MAX_LENGTH = 7, intron offset = 4
+            '''
+            exon_boundary.append(intron_offset)  # 0-indexed (the start of seq is at index 0)
+                                                 # [since argmax(softmax) gives classes 0...(n_classes-1)
 
     return res, exon_boundary
 
@@ -141,7 +147,7 @@ def remove_overlapping_genes(data):  #NOTE: Using Global Variables
 
 
 def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, all_exon_intervals_list,
-                             nonoverlapping_gene_intervals, side):
+                             nonoverlapping_gene_intervals, NO_OFFSETS_PER_EXON, side):
     '''
     Function to get final list of intervals around exon boundary for a gene,
     after checking that the intervals satisfy all validity conditions
@@ -166,11 +172,9 @@ def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, all_exon_
         start_overlap_alert = False
         end_overlap_alert = False
         i = int(var / NO_OFFSETS_PER_EXON)
-
         # Check exon in within gene bounds
         for gene in nonoverlapping_gene_intervals:
             if exon_boundary_interval in gene:
-                #print('in gene!', exon_boundary_interval, exon_boundary, gene)
                 # Check exon site interval area does not overlap with other (5) exons on the left
                 for j in range(i - 5, i):
                     if (j < 0):
@@ -203,7 +207,7 @@ def get_final_exon_intervals(exon_boundary_intervals, exon_boundaries, all_exon_
     return exon_boundary_intervals_final, exon_boundary_final
 
 
-def get_negative_samples(exon_intervals, gene_bounds, MAX_LENGTH):    # NOTE: Global variables used
+def get_negative_samples(exon_intervals, gene_bounds, MAX_LENGTH, NO_OFFSETS_PER_EXON):
     '''
     Craete negative samples for the dataset
     :param exon_intervals:
