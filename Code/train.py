@@ -388,5 +388,8 @@ if __name__ == "__main__":
     save_dir_path = sys_params['LOGS_BASE_FOLDER'] + '/'+ model_name_save_dir
     tb_path = sys_params['RUNS_BASE_FOLDER'] + '/' + model_name_save_dir
 
+    print(final_data_path)
     obj = Training(config, model_name_save_dir, final_data_path, save_dir_path, tb_path)
     obj.training_pipeline()
+
+
