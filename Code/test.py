@@ -45,6 +45,7 @@ raw_out = model.forward(data.to(device))
 loss = loss_fn(raw_out, labels.long().to(device))
 
 m = Metrics(DATASET_TYPE)  # m.metrics initialised to {0,0,0}
-metrics = m.get_metrics(raw_out.detach().clone().cpu(), labels)
+metrics, predictions = m.get_metrics(raw_out.detach().clone().cpu(), labels)
 print('True labels', labels)
-print(metrics)
+print('Predicted labels', predictions)
+print('Metrics: ', metrics)
