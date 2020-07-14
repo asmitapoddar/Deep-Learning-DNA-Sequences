@@ -179,4 +179,15 @@ def get_class_dist(classes, dataset_type):
     s = 'Dist. of classes for {:s} set: {}'.format(dataset_type, class_count)
     return s
 
+def check_output_dim(config, y_label):
+    '''
+    Assert that the output size of model is correct for the dataset being used
+    :param config: Training configuration file
+    :param y_label: numpy array containing the labels
+    :return: None
+    '''
+    class_count = Counter(y_label)
+    assert config['MODEL']['output_dim'] == len(class_count), \
+        "`{}`class classification; specify in config file".format(len(class_count))
+
 
