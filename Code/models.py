@@ -17,31 +17,6 @@ class BaseModel(nn.Module):
         return super().__str__() + '\nTrainable parameters: {}'.format(params)
 
 
-''' ******** Simple Artificial Neural Network ***********'''
-class BasicNN(nn.Module):
-
-    def __init__(self, inp, h, d, out):
-        super(BasicNN, self).__init__()
-
-        assert (len(h) == len(d))
-
-        h.insert(0, inp)
-        h.append(out)
-
-        self.linears = nn.ModuleList([nn.Linear(h[i - 1], h[i]) for i in
-                                      range(1, len(h))])
-        self.dropouts = nn.ModuleList([nn.Dropout(prob) for prob in d])
-        self.bnorms = nn.ModuleList([nn.BatchNorm1d(inp) for inp in h[1:-1]])
-        self.relus = nn.ModuleList([nn.ReLU() for i in range(len(h) - 2)])
-
-    def forward(self, X):
-        X = self.linears[1](X)
-        for l, drop, bnorm, relu in zip(self.linears[1:], self.dropouts, self.bnorms,
-                                        self.relus):
-            X = l(drop(relu(bnorm(X))))
-
-        return X
-
 ''' ***** Simple LSTM ***** '''
 class SimpleLSTM(BaseModel):
 
@@ -77,7 +52,49 @@ class SimpleLSTM(BaseModel):
         raw_out = self.output_layer(h_n[-1])
         return raw_out
 
-''' ***** attention Model ***** '''
+''' ***** CNN ***** '''
+class CNN(BaseModel):
+    def __init__(self, no_classes, device):
+        super(CNN, self).__init__()
+        self.no_classes = no_classes
+        self.device = device
+
+        self.cnn_layers = nn.Sequential(
+            # Defining a 2D convolution layer
+            nn.Conv2d(1, 32, kernel_size=(5,15), stride=1, padding=2),
+            #nn.BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            # Defining another 2D convolution layer
+            nn.Conv2d(32, 64, kernel_size=(5,15), stride=1, padding=2),
+            #nn.BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            # Dropout
+            #nn.Dropout()
+        )
+        # Defining fully-connected layer
+        #self.linear_layers = nn.Sequential(nn.Linear(self.cnn_layers.shape[1], self.no_classes))
+
+    def linear_layer(self, outputlength):
+        linear_layer = nn.Sequential(nn.Linear(outputlength, 1000).to(self.device))
+        return linear_layer
+
+    def forward(self, x):
+        x = x.reshape(x.size(0),x.size(2),x.size(1))
+        print(x.shape)
+        x = x.unsqueeze(1)
+        x = self.cnn_layers(x)
+        x = x.view(x.size(0), -1)
+
+        outputlength = x.size()[1]
+        linear_layers = self.linear_layer(outputlength)
+        output = linear_layers(x)
+        output1 = nn.Linear(1000, self.no_classes).to(self.device)(output)
+        return output1
+
+
+''' ***** Attention Model ***** '''
 
 def batch_product(iput, mat2):
     result = None
@@ -141,7 +158,7 @@ class recurrent_encoder(nn.Module):
         nt_rep, bin_alpha = self.bin_attention(bin_output)
         return nt_rep, bin_alpha
 
-class att_chrome(nn.Module):
+class att_chrome(BaseModel):
     def __init__(self, args):
         super(att_chrome, self).__init__()
         self.n_nts = args.n_nts

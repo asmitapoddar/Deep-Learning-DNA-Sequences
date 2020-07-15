@@ -34,9 +34,13 @@ class Training():
         self.tb_path = tb_path
 
         self.start_epoch = start_epoch
-        self.model = eval(config['MODEL_NAME'])(config['MODEL']['embedding_dim'], config['MODEL']['hidden_dim'],
+        if config['MODEL_NAME']=='SimpleLSTM':
+            self.model = eval(config['MODEL_NAME'])(config['MODEL']['embedding_dim'], config['MODEL']['hidden_dim'],
                                                 config['MODEL']['hidden_layers'], config['MODEL']['output_dim'],
                                                 config['DATA']['BATCH_SIZE'], self.device)
+        if config['MODEL_NAME']=='CNN':
+            self.model = eval(config['MODEL_NAME'])(config['MODEL']['output_dim'], self.device)
+
         self.optimizer = getattr(optim, config['OPTIMIZER']['type']) \
             (self.model.parameters(), lr=config['OPTIMIZER']['lr'], weight_decay=config['OPTIMIZER']['weight_decay'])
         self.scheduler = getattr(optim.lr_scheduler, config['LR_SCHEDULER']['type']) \
@@ -142,13 +146,14 @@ class Training():
             log_file.write('\n')
         log_file.close()
 
-    def write_best_metrics(self, metrics, train_loss, val_loss):
+    def write_best_metrics(self, metrics, train_loss, val_loss, epoch):
         log_file = open(self.save_dir + '/info.log', "a+")
-        log_file.write('\nBest Metrics for model -------')
+        log_file.write('\nBEST METRICS FOR MODEL (acc. to {}) -------'.format(self.config['TRAINER']['monitor']))
         # Rounding the metrics for writing-
         for task in metrics:
             for key, value in metrics[task].items():
                 metrics[task][key] = np.round(metrics[task][key], 4)
+        log_file.write('\nEpoch: ' + str(epoch))
         log_file.write('\nMetrics: ' + str(metrics))
         log_file.write('\nTrain loss: {:.4f}'.format(train_loss))
         log_file.write('\nVal loss: {:.4f}'.format(val_loss))
@@ -183,7 +188,6 @@ class Training():
         for measure, value in self.metrics['val'].items():
             self.writer['val'].add_scalar(str('Val/'+measure), value, epoch)
         self.writer['val'].add_scalar('Loss', val_loss, epoch)
-
 
     def train_one_epoch(self, epoch, x_train, y_train):
         '''
@@ -223,7 +227,6 @@ class Training():
             print('Train batch: ', bnum)
             print('True labels', sample[1])
             raw_out = self.model.forward(sample[0].to(self.device))
-
             labels = sample[1].long()
             if self.config['TASK_TYPE']=='regression':
                 raw_out = raw_out.reshape(-1)
@@ -300,6 +303,7 @@ class Training():
         print("Input data shape: ", encoded_seq.shape)
         y_label = np.loadtxt(self.data_path + '/y_label_start')
 
+        check_output_dim(self.config, y_label)
         if self.config['VALIDATION']['apply']:
             create_train_val_split = 'create_train_val_split_' + self.config['VALIDATION']['type']
             train_idx, val_idx = eval(create_train_val_split)(self.config['VALIDATION']['val_split'],
@@ -319,7 +323,12 @@ class Training():
 
         self.write_model_meta_data(x_train, x_val, y_train, y_val)
         print(x_train.shape)
-        min_val_loss, best_train_loss, best_metrics = 99999999, None, None  # For early stopping calculation
+
+        # For early stopping calculation ---
+        min_monitor = 99999999
+        best_train_loss, best_val_loss, best_metrics, best_epoch = None, None, None, None
+        monitor = 'val_loss' if self.config['TRAINER']['monitor'] == 'val_loss' \
+            else "self.metrics['val']['"+self.config['TRAINER']['monitor']+"']"
 
         for epoch in range(self.start_epoch, self.config['TRAINER']['epochs']):
             print("Training Epoch %i -------------------" % epoch)
@@ -357,14 +366,14 @@ class Training():
                 # write to runs folder (create a model file name, and write the various training runs in it
 
             # EARLY STOPPING
-            if val_loss < min_val_loss:
+            if eval(monitor) < min_monitor:
                 # Save the model
                 self.save_checkpoint(epoch=epoch, save_best=True)
                 torch.save(self.model, self.save_dir + '/best_model')
                 epochs_no_improve = 0
-                min_val_loss = val_loss
+                min_monitor = eval(monitor)  #todo be clear about what monitor keys can be used
                 best_metrics = self.metrics
-                best_train_loss = train_loss
+                best_train_loss = train_loss; best_val_loss = val_loss; best_epoch = epoch
             else:
                 epochs_no_improve += 1
             if epoch > 10 and epochs_no_improve == self.config['TRAINER']['early_stop']:
@@ -376,7 +385,7 @@ class Training():
         if self.config['TRAINER']["save_model_to_dir"]:
             print('Saving model at ', self.save_dir)
             torch.save(self.model, self.save_dir+'/trained_model_'+self.model_name_save_dir)
-            self.write_best_metrics(best_metrics, best_train_loss, min_val_loss)
+            self.write_best_metrics(best_metrics, best_train_loss, best_val_loss, best_epoch)
 
         if self.config['TRAINER']['tensorboard']:
             self.writer['train'].close()
