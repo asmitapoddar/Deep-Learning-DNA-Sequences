@@ -28,13 +28,14 @@ def convert_list_to_interval(data):
         res.append(P.closed(exon[0], exon[1]))
     return res
 
-def create_boundary_intervals(data, side, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSET_RANGE):
+def create_boundary_intervals(data, strand, side, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSET_RANGE):
     '''
     Function to get a list of lists (list of ranges) and return a list of intervals
     Ex. Exon interval = [8,20]
         MAX_LENGTH = 10, intron_offset = 5, exon_offset = 10-5-1 = 4
         Exon start interval = [8-5, 8+4] = [3,12], Exon boundary = 6 (the 6th nt in the seq of 10 is the start of the exon)
     :param data: list of lists (list of ranges)
+    :param strand: char: strand of gene
     :param side: which side (exon_start/ exon_end)
     :param start: offset for getting (site-start) region
     :param end: offset for getting (site+end) region
@@ -53,10 +54,16 @@ def create_boundary_intervals(data, side, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSE
             intron_offset = random.randint(OFFSET_RANGE[0], OFFSET_RANGE[1])
             exon_offset = MAX_LENGTH - intron_offset - 1
 
-            if side == 'start':
-                res.append(P.closed(exon[0] - intron_offset, exon[0] + exon_offset))
-            if side == 'end':
-                res.append(P.closed(exon[1] - exon_offset, exon[1] + intron_offset))
+            if strand=='+':
+                if side == 'start':
+                    res.append(P.closed(exon[0] - intron_offset, exon[0] + exon_offset))
+                if side == 'end':
+                    res.append(P.closed(exon[1] - exon_offset, exon[1] + intron_offset))
+            if strand=='-':  #start/end sides swapped for '+' and '-' genes
+                if side == 'start':
+                    res.append(P.closed(exon[1] - exon_offset, exon[1] + intron_offset))
+                if side == 'end':
+                    res.append(P.closed(exon[0] - intron_offset, exon[0] + exon_offset))
 
             '''
             1 2 3 4 5 6 7 8 (9) 10 11 12    ()=exon boundary  
@@ -299,7 +306,7 @@ def write_to_file(data, file_name):
     :param file_name: str - File name
     :return: None
     '''
-    print(file_name)
+    print('Writing to file: {} ...'.format(file_name))
     with open(file_name, "w+") as file:
         file.write("\n".join(str(item) for item in data))
     file.close()

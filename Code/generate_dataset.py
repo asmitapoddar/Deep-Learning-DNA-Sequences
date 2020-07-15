@@ -79,7 +79,7 @@ class GenerateDataset():
                 nonoverlapping_exon_ranges_for_gene = get_nonoverlapping_exon_bounds(exons_ranges_in_transcript)
 
                 # get exon start & end intervals - with offsets: list of intervals todo: might change for single offset exons
-                exon_boundary_list, exon_boundaries_y = create_boundary_intervals(nonoverlapping_exon_ranges_for_gene, self.EXON_BOUNDARY,
+                exon_boundary_list, exon_boundaries_y = create_boundary_intervals(nonoverlapping_exon_ranges_for_gene, gene['gene_strand'], self.EXON_BOUNDARY,
                                                                                   self.MAX_LENGTH, self.NO_OFFSETS_PER_EXON, self.OFFSET_RANGE)
                 exon_intervals_list = convert_list_to_interval(nonoverlapping_exon_ranges_for_gene)
 
@@ -121,7 +121,7 @@ class GenerateDataset():
         dataset_path = chrm_path + self.DATASET_TYPE
         # Write to file ----
         if self.WRITE_DATA_TO_FILE:
-            print('WRITE_TO_FILE_PATH', self.WRITE_TO_FILE_PATH)
+            print('Writing Data to {} ...'.format(self.WRITE_TO_FILE_PATH))
             if not os.path.exists(self.WRITE_TO_FILE_PATH):
                 os.makedirs(self.WRITE_TO_FILE_PATH)
             write_to_file(training_y, self.WRITE_TO_FILE_PATH + '/y_label_'+self.EXON_BOUNDARY)
@@ -148,6 +148,7 @@ class GenerateDataset():
     def write_data_log(self, training_x, len_boundary, len_exon, len_intron):
         if not os.path.exists(self.WRITE_TO_FILE_PATH):
             os.makedirs(self.WRITE_TO_FILE_PATH)
+        print('Writing Data Log to {} ...'.format(self.WRITE_TO_FILE_PATH + '/info.log'))
         with open(self.WRITE_TO_FILE_PATH + '/info.log', 'w+') as f:
             f.write('DATASET TYPE: ' + str(self.DATASET_TYPE))
             f.write('\nSEQUENCE TYPE: ' + str(self.SEQ_TYPE))
@@ -173,11 +174,11 @@ if __name__ == "__main__":
 
     MAX_LENGTH = 100
     NO_OFFSETS_PER_EXON = 5
-    MIN_INTRON_OFFSET = 60
-    MIN_EXON_OFFSET = 10
+    MIN_INTRON_OFFSET = 2
+    MIN_EXON_OFFSET = 80
     OFFSET_RANGE = [MIN_INTRON_OFFSET, MAX_LENGTH - MIN_EXON_OFFSET]
     EXON_BOUNDARY = 'start'  # or 'end'
-    DATASET_TYPE = 'boundaryCertainPoint_orNot_2classification'  # 'classification'  # or 'regression'
+    DATASET_TYPE = 'boundaryCertainPoint_orNot_2classification'
     SEQ_TYPE = 'cds'  # 'cds'/'exons'
     #NO_OF_GENES = 3
 
@@ -198,13 +199,14 @@ if __name__ == "__main__":
 
     if DATASET_TYPE == 'boundaryCertainPoint_orNot_2classification':
         NO_OFFSETS_PER_EXON = 1
-        OFFSET_RANGE = [99,99]   #Note: Change boundary point here
+        OFFSET_RANGE = [60,60]   #Note: Change boundary point here
         assert NO_OFFSETS_PER_EXON == 1
         assert OFFSET_RANGE[0] == OFFSET_RANGE[1]
 
     WRITE_TO_FILE_PATH = sys_params['DATA_WRITE_FOLDER'] + '/chrm21' + '/' + str(DATASET_TYPE) + '/' + SEQ_TYPE + '_' + \
                          str(EXON_BOUNDARY) + '_n' + str(NO_OF_GENES) + '_l' + str(MAX_LENGTH) + \
-                         '_o' + str(OFFSET_RANGE[0])
+                         '_i' + str(OFFSET_RANGE[0]) + '_e' + str(MIN_EXON_OFFSET)
+
 
     obj = GenerateDataset(DATASET_TYPE, EXON_BOUNDARY, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSET_RANGE,
                  SEQ_TYPE, NO_OF_GENES, WRITE_DATA_TO_FILE, WRITE_TO_FILE_PATH, DATA_LOG,
