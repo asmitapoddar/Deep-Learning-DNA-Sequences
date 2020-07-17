@@ -20,25 +20,26 @@ class BaseModel(nn.Module):
 ''' ***** Simple LSTM ***** '''
 class SimpleLSTM(BaseModel):
 
-    def __init__(self, input_dims, hidden_units, hidden_layers, out, batch_size, device):
+    def __init__(self, input_dims, hidden_units, hidden_layers, out, batch_size,
+                 bidirectional, device):
         super(SimpleLSTM, self).__init__()
         self.input_dims = input_dims
         self.hidden_units = hidden_units
         self.hidden_layers = hidden_layers
         self.batch_size = batch_size
+        self.bidirectional = bidirectional
         self.device = device
+        self.num_directions = 2 if bidirectional else 1
 
         self.lstm = nn.LSTM(self.input_dims, self.hidden_units, self.hidden_layers,
-                            batch_first=True, bidirectional=False)
-        self.output_layer = nn.Linear(self.hidden_units, out)
+                            batch_first=True, bidirectional=bidirectional)
+        self.output_layer = nn.Linear(self.hidden_units * self.num_directions, out)
 
     def init_hidden(self, batch_size):
-
-        #hidden = Variable(next(self.parameters()).data.new(self.hidden_layers, batch_size, self.hidden_units))
-        #cell = Variable(next(self.parameters()).data.new(self.hidden_layers, batch_size, self.hidden_units))
-
-        hidden = torch.rand(self.hidden_layers, batch_size, self.hidden_units, device=self.device, dtype=torch.float32)
-        cell = torch.rand(self.hidden_layers, batch_size, self.hidden_units, device=self.device, dtype=torch.float32)
+        hidden = torch.rand(self.num_directions*self.hidden_layers, batch_size, self.hidden_units,
+                            device=self.device, dtype=torch.float32)
+        cell = torch.rand(self.num_directions* self.hidden_layers, batch_size, self.hidden_units,
+                          device=self.device, dtype=torch.float32)
 
         hidden = nn.init.xavier_normal_(hidden)
         cell = nn.init.xavier_normal_(cell)
@@ -48,8 +49,13 @@ class SimpleLSTM(BaseModel):
     def forward(self, input):
         hidden = self.init_hidden(input.shape[0])  # tuple containing hidden state and cell state; `hidden` = (h_t, c_t)
                                                     # pass batch_size as a parameter incase of incomplete batch
-        lstm_out, (h_n, c_n) = self.lstm(input, hidden)
-        raw_out = self.output_layer(h_n[-1])
+        lstm_out, (h_n, c_n) = self.lstm(input)
+        #concat_state = torch.cat((lstm_out[:, -1, :self.hidden_units], lstm_out[:, 0, self.hidden_units:]), 1)
+        hidden_reshape = h_n.reshape(-1, self.hidden_units * self.num_directions)
+
+        raw_out = self.output_layer(hidden_reshape)
+        #raw_out = self.output_layer(h_n[-1])
+
         return raw_out
 
 ''' ***** CNN ***** '''
@@ -82,7 +88,6 @@ class CNN(BaseModel):
 
     def forward(self, x):
         x = x.reshape(x.size(0),x.size(2),x.size(1))
-        print(x.shape)
         x = x.unsqueeze(1)
         x = self.cnn_layers(x)
         x = x.view(x.size(0), -1)
@@ -144,37 +149,38 @@ class recurrent_encoder(nn.Module):
         else:
             self.bin_rnn_size = args.bin_rnn_size // 2
         self.bin_rep_size = self.bin_rnn_size * self.num_directions
-
         self.rnn = nn.LSTM(self.ipsize, self.bin_rnn_size, num_layers=args.num_layers, dropout=args.dropout,
-                           bidirectional=args.bidirectional)
+                           bidirectional=args.bidirectional, batch_first=True)
         self.bin_attention = rec_attention(hm, args)
 
     def outputlength(self):
         return self.bin_rep_size
 
-    def forward(self, single_hm, hidden=None):
-        bin_output, hidden = self.rnn(single_hm, hidden)
-        bin_output = bin_output.permute(1, 0, 2)
-        nt_rep, bin_alpha = self.bin_attention(bin_output)
-        return nt_rep, bin_alpha
+    def forward(self, seq, hidden=None):
+        lstm_output, hidden = self.rnn(seq, hidden)
+        hidden_reshape = hidden[0].reshape(-1, self.bin_rnn_size * self.num_directions)
+
+        bin_output_for_att = lstm_output.permute(1, 0, 2)
+        nt_rep, bin_alpha = self.bin_attention(bin_output_for_att)
+        return nt_rep, hidden_reshape, bin_alpha
 
 class att_chrome(BaseModel):
-    def __init__(self, args):
+    def __init__(self, args, out):
         super(att_chrome, self).__init__()
         self.n_nts = args.n_nts
         self.n_bins = args.n_bins
         self.ip_bin_size = 1
-
         self.encoder = recurrent_encoder(self.n_bins, self.n_nts, False, args)
         self.opsize = self.encoder.outputlength()
-        self.linear = nn.Linear(self.opsize, 2)
+        self.linear = nn.Linear(self.opsize * 2, out)
 
     def forward(self, iput):
 
         [batch_size, _, _] = iput.size()
-        level1_rep, bin_a = self.encoder(iput)
+        level1_rep, hidden_reshape, bin_a = self.encoder(iput)
         level1_rep = level1_rep.squeeze(1)
-        bin_pred = self.linear(level1_rep)
+        concat = torch.cat((hidden_reshape, level1_rep), dim=1)
+        bin_pred = self.linear(concat)
         sigmoid_pred = torch.sigmoid(bin_pred)
         return sigmoid_pred, bin_a
 

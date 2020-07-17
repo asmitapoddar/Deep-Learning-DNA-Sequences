@@ -54,7 +54,7 @@ class Training():
         self.att_path = att_path
 
         self.start_epoch = start_epoch
-        self.model = att_chrome(att_chrome_args)
+        self.model = att_chrome(att_chrome_args, config['MODEL']['output_dim'])
 
         self.optimizer = getattr(optim, config['OPTIMIZER']['type']) \
             (self.model.parameters(), lr=config['OPTIMIZER']['lr'], weight_decay=config['OPTIMIZER']['weight_decay'])
