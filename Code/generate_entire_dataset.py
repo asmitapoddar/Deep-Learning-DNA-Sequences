@@ -34,7 +34,7 @@ chrom_ignore = [3, 12]
 f = open(sys_params['DATA_WRITE_FOLDER']+'/all/raw_data/genes_ignore.txt', "r")
 genes_ignore = [line.strip() for line in f]
 
-for i in range(3,23):  # full chromosome range = [1,23]
+for i in range(1,23):  # full chromosome range = [1,23]
     if i in chrom_ignore:
         continue
 
