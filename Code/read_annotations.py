@@ -68,7 +68,7 @@ def create_chromosome_annotations(chrm='chr21', base_write_path='', write_to_fil
 
     l = list(map(lambda x: x.split(';'), chr_no['other']))
     df_l = pd.DataFrame(l)
-    df_l[0] = list(map(lambda x: x[8:], df_l[0]))
+    df_l[0] = list(map(lambda x: x[8:], df_l[0])) #remove 'gene_id '[0,8] part from gene_id field
     del chr_no['other']
 
     chr_no.reset_index(drop=True, inplace=True)

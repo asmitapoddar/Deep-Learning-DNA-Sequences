@@ -21,7 +21,7 @@ class BaseModel(nn.Module):
 class SimpleLSTM(BaseModel):
 
     def __init__(self, input_dims, hidden_units, hidden_layers, out, batch_size,
-                 bidirectional, device):
+                 bidirectional, dropout, device):
         super(SimpleLSTM, self).__init__()
         self.input_dims = input_dims
         self.hidden_units = hidden_units
@@ -32,7 +32,7 @@ class SimpleLSTM(BaseModel):
         self.num_directions = 2 if bidirectional else 1
 
         self.lstm = nn.LSTM(self.input_dims, self.hidden_units, self.hidden_layers,
-                            batch_first=True, bidirectional=bidirectional)
+                            batch_first=True, bidirectional=bidirectional, dropout=dropout)
         self.output_layer = nn.Linear(self.hidden_units * self.num_directions, out)
 
     def init_hidden(self, batch_size):

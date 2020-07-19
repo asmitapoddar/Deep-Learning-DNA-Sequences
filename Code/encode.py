@@ -42,7 +42,7 @@ def encode_seq(write_path):
     encoded_f = open(write_path+'/encoded_seq', 'w')
     seq_file=open(write_path+'/dna_seq_start').read().splitlines()
 
-    print('Encoding dns seq...')
+    print('Encoding dna seq...')
     for line in tqdm.tqdm(seq_file):
         seq = line
         encoded_seq = encode(seq)
