@@ -1,10 +1,6 @@
 import numpy as np
 import pathlib
-
-curr_dir_path = str(pathlib.Path().absolute())
-data_path = curr_dir_path + "/Data/"
-DATASET_TYPE = 'regression'
-write_path = data_path + 'chrm21/' + DATASET_TYPE + '/cds_start_n875_l100/'
+import tqdm
 
 def encode(seq):
 
@@ -43,22 +39,17 @@ def encode(seq):
     return encoded_seq
 
 def encode_seq(write_path):
-    
-    i = 0
- 
     encoded_f = open(write_path+'/encoded_seq', 'w')
-                    
     seq_file=open(write_path+'/dna_seq_start').read().splitlines()
-    for line in seq_file:
+
+    print('Encoding dns seq...')
+    for line in tqdm.tqdm(seq_file):
         seq = line
         encoded_seq = encode(seq)
         for base in encoded_seq:
             encoded_f.write(str(base))
             encoded_f.write("   ")
         encoded_f.write("\n")
-
-        i=i+1
-        print(i)
 
     encoded_f.close()
 

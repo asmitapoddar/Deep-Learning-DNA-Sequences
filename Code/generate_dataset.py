@@ -57,9 +57,8 @@ class GenerateDataset():
         print('non-overlapping genes ', len(nonoverlapping_gene_intervals), nonoverlapping_gene_intervals)  # 821
 
         # Iterating through all genes of the chromosome
-        for gene in data[0:self.NO_OF_GENES]:  #Note: controlling how many genes to use
+        for gene in tqdm.tqdm(data[0:self.NO_OF_GENES]):  #Note: controlling how many genes to use
 
-            print(gene['gene_id'])
             gene_sequence = get_gene_seq(gene['gene_sequence'], gene['gene_strand'])
             gene_bounds = gene['gene_bounds']
 
@@ -103,7 +102,7 @@ class GenerateDataset():
                 len_exon += len(within_exon_seq_intervals)
                 len_intron += len(within_intron_seq_intervals)
                 len_boundary += len(exon_boundary_set_final)
-                print('Dataset stats (#boundary, #exon, #intron): ', len_boundary, len_exon, len_intron)
+                #print('Dataset stats (#boundary, #exon, #intron): ', len_boundary, len_exon, len_intron)
 
                 all_exon_intervals = all_exon_intervals.append(
                     {'Gene': gene['gene_id'], 'Exon_Intervals': exon_intervals_list}, ignore_index=True)
