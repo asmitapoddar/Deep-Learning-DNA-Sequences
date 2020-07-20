@@ -1,6 +1,7 @@
 import numpy as np
 import pathlib
 import tqdm
+import argparse
 
 def encode(seq):
 
@@ -54,4 +55,8 @@ def encode_seq(write_path):
     encoded_f.close()
 
 if __name__ =='__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Create one-hot encoding for DNA sequence')
+    parser.add_argument('--write_path', type=str, help='write_path for encoded dna seq')
+    args = parser.parse_args()
+
+    encode_seq(write_path=args.write_path)
