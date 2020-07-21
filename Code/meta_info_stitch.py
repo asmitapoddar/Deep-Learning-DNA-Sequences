@@ -1,15 +1,22 @@
 import os
+import argparse
+
 total = 0
 intron_exon = 0
 exon = 0
 intron = 0
 
-directory= '/mnt/sdc/asmita/Code/Data/all/boundaryCertainPoint_orNot_2classification/60/'
+parser = argparse.ArgumentParser(description='Create meta-info')
+parser.add_argument('--write_path', type=str, help='write_path for meta-info file')
+args = parser.parse_args()
+#directory= '/mnt/sdc/asmita/Code/Data/all/boundaryCertainPoint_orNot_2classification/60/'
+directory = args.write_path
+
 for dir in os.listdir(directory):
-    if os.path.isfile(directory + dir):
+    if os.path.isfile(directory + '/' + dir):
         print('not dir', dir)
         continue
-    with open(directory + dir + '/info.log', 'r') as f:
+    with open(directory + '/' + dir + '/info.log', 'r') as f:
         for line in f:
             if "Total no. of samples in training set" in line:
                 total += (int)(line[39:])
