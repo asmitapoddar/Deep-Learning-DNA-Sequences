@@ -37,7 +37,8 @@ class Training():
         if config['MODEL_NAME']=='SimpleLSTM':
             self.model = eval(config['MODEL_NAME'])(config['MODEL']['embedding_dim'], config['MODEL']['hidden_dim'],
                                                 config['MODEL']['hidden_layers'], config['MODEL']['output_dim'],
-                                                config['DATA']['BATCH_SIZE'], self.device)
+                                                config['DATA']['BATCH_SIZE'], config['MODEL']['bidirectional'],
+                                                config['TRAINER']['dropout'], self.device)
         if config['MODEL_NAME']=='CNN':
             self.model = eval(config['MODEL_NAME'])(config['MODEL']['output_dim'], self.device)
 
@@ -50,6 +51,7 @@ class Training():
         self.writer = {'train': None, 'val': None}  # For TensorBoard
 
         self.metrics = {'train': {}, 'val': {}}
+        self.best_metrics = {'train': {}, 'val': {}}
         self.model_name_save_dir = model_name_save_dir
 
 
@@ -166,7 +168,7 @@ class Training():
         #Writing to be done in the first epoch
         print('Epoch in TensorBoard:', epoch)
         if epoch==0:
-            print('tb_path', tb_path)
+            print('Writing to TensorBoard path', self.tb_path)
             if os.path.isdir(self.tb_path):
                 shutil.rmtree(self.tb_path)
 
@@ -305,6 +307,7 @@ class Training():
 
         check_output_dim(self.config, y_label)
         if self.config['VALIDATION']['apply']:
+            print('Creating train/val split ({})...'.format(self.config['VALIDATION']['type']))
             create_train_val_split = 'create_train_val_split_' + self.config['VALIDATION']['type']
             train_idx, val_idx = eval(create_train_val_split)(self.config['VALIDATION']['val_split'],
                                                                  n_samples=len(encoded_seq))
@@ -326,7 +329,7 @@ class Training():
 
         # For early stopping calculation ---
         min_monitor = 99999999
-        best_train_loss, best_val_loss, best_metrics, best_epoch = None, None, None, None
+        best_epoch = None
         monitor = 'val_loss' if self.config['TRAINER']['monitor'] == 'val_loss' \
             else "self.metrics['val']['"+self.config['TRAINER']['monitor']+"']"
 
@@ -372,8 +375,10 @@ class Training():
                 torch.save(self.model, self.save_dir + '/best_model')
                 epochs_no_improve = 0
                 min_monitor = eval(monitor)  #todo be clear about what monitor keys can be used
-                best_metrics = self.metrics
-                best_train_loss = train_loss; best_val_loss = val_loss; best_epoch = epoch
+                self.best_metrics = self.metrics
+                self.best_metrics['train']['loss'] = train_loss
+                self.best_metrics['val']['loss'] = val_loss
+                best_epoch = epoch
             else:
                 epochs_no_improve += 1
             if epoch > 10 and epochs_no_improve == self.config['TRAINER']['early_stop']:
@@ -385,7 +390,7 @@ class Training():
         if self.config['TRAINER']["save_model_to_dir"]:
             print('Saving model at ', self.save_dir)
             torch.save(self.model, self.save_dir+'/trained_model_'+self.model_name_save_dir)
-            self.write_best_metrics(best_metrics, best_train_loss, best_val_loss, best_epoch)
+            self.write_best_metrics(self.best_metrics, self.best_metrics['train']['loss'], self.best_metrics['val']['loss'], best_epoch)
 
         if self.config['TRAINER']['tensorboard']:
             self.writer['train'].close()

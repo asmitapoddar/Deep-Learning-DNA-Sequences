@@ -33,7 +33,7 @@ class SimpleLSTM(BaseModel):
 
         self.lstm = nn.LSTM(self.input_dims, self.hidden_units, self.hidden_layers,
                             batch_first=True, bidirectional=bidirectional, dropout=dropout)
-        self.output_layer = nn.Linear(self.hidden_units * self.num_directions, out)
+        self.output_layer = nn.Linear(self.hidden_units * self.num_directions * self.hidden_layers, out)
 
     def init_hidden(self, batch_size):
         hidden = torch.rand(self.num_directions*self.hidden_layers, batch_size, self.hidden_units,
@@ -51,7 +51,7 @@ class SimpleLSTM(BaseModel):
                                                     # pass batch_size as a parameter incase of incomplete batch
         lstm_out, (h_n, c_n) = self.lstm(input)
         #concat_state = torch.cat((lstm_out[:, -1, :self.hidden_units], lstm_out[:, 0, self.hidden_units:]), 1)
-        hidden_reshape = h_n.reshape(-1, self.hidden_units * self.num_directions)
+        hidden_reshape = h_n.reshape(-1, self.hidden_units * self.num_directions * self.hidden_layers)
 
         raw_out = self.output_layer(hidden_reshape)
         #raw_out = self.output_layer(h_n[-1])
@@ -158,7 +158,7 @@ class recurrent_encoder(nn.Module):
 
     def forward(self, seq, hidden=None):
         lstm_output, hidden = self.rnn(seq, hidden)
-        hidden_reshape = hidden[0].reshape(-1, self.bin_rnn_size * self.num_directions)
+        hidden_reshape = hidden[0].reshape(-1, self.bin_rnn_size * self.num_directions * self.hidden_layers)
 
         bin_output_for_att = lstm_output.permute(1, 0, 2)
         nt_rep, bin_alpha = self.bin_attention(bin_output_for_att)

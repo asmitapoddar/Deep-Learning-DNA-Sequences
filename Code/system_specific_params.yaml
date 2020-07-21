@@ -3,4 +3,4 @@ DATA_READ_FOLDER : '/Users/asmitapoddar/Documents/Oxford/Thesis/Genomics Project
 DATA_WRITE_FOLDER : '/Users/asmitapoddar/Documents/Oxford/Thesis/Genomics Project/Code/Data'
 RUNS_BASE_FOLDER : '/Users/asmitapoddar/Documents/Oxford/Thesis/Genomics Project/Code/runs'
 LOGS_BASE_FOLDER : '/Users/asmitapoddar/Documents/Oxford/Thesis/Genomics Project/Code/saved_models'
-
+ATT_BASE_FOLDER : '/Users/asmitapoddar/Documents/Oxford/Thesis/Genomics Project/Code/attention'
