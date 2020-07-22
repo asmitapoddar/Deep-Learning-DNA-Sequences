@@ -8,7 +8,7 @@ import datetime
 import json
 import pathlib
 import yaml
-
+import copy
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -25,9 +25,12 @@ data_path = curr_dir_path + "/Data/"
 
 class Training():
 
-    def __init__(self, config, model_name_save_dir, data_path='', save_dir = '', tb_path = '', start_epoch=0):
+    def __init__(self, config, model_name_save_dir, data_path='', save_dir = '', tb_path = '', device='', start_epoch=0):
         self.config = config
-        self.device = torch.device('cuda:7' if torch.cuda.is_available() else 'cpu')
+        if device == '':
+            self.device = torch.device('cuda:7' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = device
 
         self.data_path = data_path
         self.save_dir = save_dir
@@ -226,8 +229,8 @@ class Training():
 
             self.model.train()
             self.model.zero_grad()
-            print('Train batch: ', bnum)
-            print('True labels', sample[1])
+            #print('Train batch: ', bnum)
+            #print('True labels', sample[1])
             raw_out = self.model.forward(sample[0].to(self.device))
             labels = sample[1].long()
             if self.config['TASK_TYPE']=='regression':
@@ -239,7 +242,7 @@ class Training():
 
             # EVALUATION METRICS PER BATCH
             metrics_for_batch, pred = m.get_metrics(raw_out.detach().clone(), sample[1].detach().clone(), 'macro')  # todo: understand 'macro'
-            print('Predicted labels', pred)
+            #print('Predicted labels', pred)
             for key,value in metrics_for_batch.items():
                 self.metrics['train'][key] += value
             avg_train_loss += loss.item()
@@ -273,7 +276,7 @@ class Training():
         avg_val_loss = 0
 
         for bnum, sample in enumerate(val_dataloader):
-            print('Val batch: ', bnum)
+            #print('Val batch: ', bnum)
             self.model.eval()
             raw_out = self.model.forward(sample[0].to(self.device))
             labels = sample[1].long()
@@ -375,9 +378,10 @@ class Training():
                 torch.save(self.model, self.save_dir + '/best_model')
                 epochs_no_improve = 0
                 min_monitor = eval(monitor)  #todo be clear about what monitor keys can be used
-                self.best_metrics = self.metrics
+                self.best_metrics = copy.deepcopy(self.metrics)
                 self.best_metrics['train']['loss'] = train_loss
                 self.best_metrics['val']['loss'] = val_loss
+                self.best_metrics['train']['best_epoch'] = epoch
                 best_epoch = epoch
             else:
                 epochs_no_improve += 1
@@ -385,20 +389,23 @@ class Training():
                 print('Early stopping!')
                 print("Stopped after {:d} epochs".format(epoch))
                 break
+            print('Best metrics, Epoch{}'.format(epoch), self.best_metrics)
 
-        # SAVE MODEL TO DIRECTORY
+       # SAVE MODEL TO DIRECTORY
         if self.config['TRAINER']["save_model_to_dir"]:
-            print('Saving model at ', self.save_dir)
             torch.save(self.model, self.save_dir+'/trained_model_'+self.model_name_save_dir)
+            print('save model to dir best metrics', self.best_metrics)
             self.write_best_metrics(self.best_metrics, self.best_metrics['train']['loss'], self.best_metrics['val']['loss'], best_epoch)
 
         if self.config['TRAINER']['tensorboard']:
             self.writer['train'].close()
             self.writer['train'].close()
 
+        return self.best_metrics
+
 if __name__ == "__main__":
 
-    chrm =  "chrm21/"
+    chrm =  "all/"
 
     # Get config file
     with open(curr_dir_path + "/config.json", encoding='utf-8', errors='ignore') as json_data:
