@@ -15,6 +15,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
 import torch.utils.tensorboard as tb
+from sklearn.model_selection import StratifiedShuffleSplit
 
 from train_utils import *
 from models import *
@@ -214,7 +215,7 @@ class Training():
         self.model.to(self.device)
 
         # LOSS FUNCTION
-        loss_fn = getattr(nn, self.config['LOSS'])()  # For eg: nn.CrossEntropyLoss()
+        loss_fn = getattr(nn, self.config['LOSS'])(weight=get_weight_tensor(y_train, self.device))  # For eg: nn.CrossEntropyLoss()
 
         # OPTIMISER
         # self.optimiser = optim.SGD(model.parameters(), momentum=0.9, lr=0.001)  # [for eg.] (or Adam)
@@ -272,7 +273,7 @@ class Training():
 
         m = Metrics(self.config['TASK_TYPE'])  # m.metrics initialised to {0,0,0}
         self.metrics['val'] = m.metrics
-        loss_fn =  getattr(nn, self.config['LOSS'])()
+        loss_fn =  getattr(nn, self.config['LOSS'])(weight=get_weight_tensor(y_val, self.device))
         avg_val_loss = 0
 
         for bnum, sample in enumerate(val_dataloader):
@@ -302,18 +303,17 @@ class Training():
     def training_pipeline(self):
         #Todo:For loading state, self.start epoch would change
 
-        encoded_seq = np.loadtxt(self.data_path + '/encoded_seq')
+        encoded_seq = np.loadtxt(self.data_path + '/encoded_seq_sub')  #Note: INPUT
         no_timesteps = int(len(encoded_seq[0]) / 4)
         encoded_seq = encoded_seq.reshape(-1, no_timesteps, 4)
         print("Input data shape: ", encoded_seq.shape)
-        y_label = np.loadtxt(self.data_path + '/y_label_start')
+        y_label = np.loadtxt(self.data_path + '/y_label_start_sub')  #Note: INPUT
 
         check_output_dim(self.config, y_label)
         if self.config['VALIDATION']['apply']:
             print('Creating train/val split ({})...'.format(self.config['VALIDATION']['type']))
             create_train_val_split = 'create_train_val_split_' + self.config['VALIDATION']['type']
-            train_idx, val_idx = eval(create_train_val_split)(self.config['VALIDATION']['val_split'],
-                                                                 n_samples=len(encoded_seq))
+            train_idx, val_idx = eval(create_train_val_split)(self.config['VALIDATION']['val_split'], y=y_label)
 
             # Create train/validation split ------
             x_train = encoded_seq[np.ix_(train_idx)] #replace `train_idx` by `np.arange(len(encoded_seq))` to use whole dataset
@@ -389,7 +389,6 @@ class Training():
                 print('Early stopping!')
                 print("Stopped after {:d} epochs".format(epoch))
                 break
-            print('Best metrics, Epoch{}'.format(epoch), self.best_metrics)
 
        # SAVE MODEL TO DIRECTORY
         if self.config['TRAINER']["save_model_to_dir"]:
@@ -419,8 +418,8 @@ if __name__ == "__main__":
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('_%d-%m_%H:%M')
     model_name_save_dir = string_metadata(config) + timestamp
 
-    save_dir_path = sys_params['LOGS_BASE_FOLDER'] + '/'+ model_name_save_dir
-    tb_path = sys_params['RUNS_BASE_FOLDER'] + '/' + model_name_save_dir
+    save_dir_path = sys_params['LOGS_BASE_FOLDER'] + '/lengths/'+ model_name_save_dir
+    tb_path = sys_params['RUNS_BASE_FOLDER'] + '/lengths/' + model_name_save_dir
 
     config['TRAINER']['save_dir'] = save_dir_path
     config['TRAINER']['tb_path'] = tb_path
