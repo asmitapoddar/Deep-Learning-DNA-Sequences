@@ -21,4 +21,19 @@ def exon_postion():
     plt.savefig(graphs_path+'regression-cds_start_n875_l100.png')  #todo: rename properly automatically
     plt.show()
 
-exon_postion()
+def accuracy_vs_length():
+    lengths = [10,20,30,40,50,60,70,80,90,100]
+    accuracy_64 = [54.25,54.64,55.4,55.9,54.84,54.69,54.68,54.48,54.12,53.7]
+    accuracy_128 = [53.71,52.82,55.13,54.77,54.67,54.88,52.53,54.25,52.70,54.61]
+    plt.xlabel('Length of DNA seq')
+    plt.ylabel('Accuracy')
+    plt.title('Accuracy of 2-class (boundary/no boundary) classification vs Length Plot')
+    plt.plot(lengths, accuracy_64, color='red', label='hidden dim: 64')
+    #plt.plot(lengths, accuracy_128, color='blue', label='hidden dim: 128')
+    plt.legend()
+    plt.savefig(graphs_path + 'Accuracy vs Length Plot Test 1')
+    plt.show()
+
+
+#exon_postion()
+accuracy_vs_length()
