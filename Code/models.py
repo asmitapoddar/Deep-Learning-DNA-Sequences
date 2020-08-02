@@ -36,6 +36,7 @@ class SimpleLSTM(BaseModel):
         self.output_layer = nn.Linear(self.hidden_units * self.num_directions * self.hidden_layers, out)
 
     def init_hidden(self, batch_size):
+        torch.manual_seed(0)
         hidden = torch.rand(self.num_directions*self.hidden_layers, batch_size, self.hidden_units,
                             device=self.device, dtype=torch.float32)
         cell = torch.rand(self.num_directions* self.hidden_layers, batch_size, self.hidden_units,
@@ -49,7 +50,7 @@ class SimpleLSTM(BaseModel):
     def forward(self, input):
         hidden = self.init_hidden(input.shape[0])  # tuple containing hidden state and cell state; `hidden` = (h_t, c_t)
                                                     # pass batch_size as a parameter incase of incomplete batch
-        lstm_out, (h_n, c_n) = self.lstm(input)
+        lstm_out, (h_n, c_n) = self.lstm(input, hidden)
         #concat_state = torch.cat((lstm_out[:, -1, :self.hidden_units], lstm_out[:, 0, self.hidden_units:]), 1)
         hidden_reshape = h_n.reshape(-1, self.hidden_units * self.num_directions * self.hidden_layers)
 
@@ -114,18 +115,15 @@ def batch_product(iput, mat2):
 
 
 class rec_attention(nn.Module):
-    # attention with bin context vector per HM and HM context vector
-    def __init__(self, hm, args):
+    # attention with bin context vector
+    def __init__(self, args):
         super(rec_attention, self).__init__()
-        self.num_directions = 2 if args.bidirectional else 1
-        if (hm == False):
-            self.bin_rep_size = args.bin_rnn_size * self.num_directions
-        else:
-            self.bin_rep_size = args.bin_rnn_size
+        self.num_directions = 2 if args['bidirectional'] else 1
+        self.bin_rep_size = args['bin_rnn_size'] * self.num_directions
 
         self.bin_context_vector = nn.Parameter(torch.Tensor(self.bin_rep_size, 1), requires_grad=True)
         self.softmax = nn.Softmax(dim=1)
-        self.bin_context_vector.data.uniform_(-0.1, 0.1)
+        self.bin_context_vector.data.uniform_(-0.1, 0.1)  # Learnable parameter
 
     def forward(self, iput):
         alpha = self.softmax(batch_product(iput, self.bin_context_vector))
@@ -139,26 +137,29 @@ class recurrent_encoder(nn.Module):
     # modular LSTM encoder
     def __init__(self, n_bins, ip_bin_size, hm, args):
         super(recurrent_encoder, self).__init__()
-        self.bin_rnn_size = args.bin_rnn_size
+        self.bin_rnn_size = args['bin_rnn_size']
+        self.num_layers = args['num_layers']
         self.ipsize = ip_bin_size
         self.seq_length = n_bins
 
-        self.num_directions = 2 if args.bidirectional else 1
+        self.num_directions = 2 if args['bidirectional'] else 1
         if (hm == False):
-            self.bin_rnn_size = args.bin_rnn_size
+            self.bin_rnn_size = args['bin_rnn_size']
         else:
             self.bin_rnn_size = args.bin_rnn_size // 2
         self.bin_rep_size = self.bin_rnn_size * self.num_directions
-        self.rnn = nn.LSTM(self.ipsize, self.bin_rnn_size, num_layers=args.num_layers, dropout=args.dropout,
-                           bidirectional=args.bidirectional, batch_first=True)
-        self.bin_attention = rec_attention(hm, args)
+        self.rnn = nn.LSTM(self.ipsize, self.bin_rnn_size, num_layers=self.num_layers, dropout=args['dropout'],
+                           bidirectional=args['bidirectional'], batch_first=True)
+        self.bin_attention = rec_attention(args)
 
     def outputlength(self):
         return self.bin_rep_size
 
     def forward(self, seq, hidden=None):
+        torch.manual_seed(0)
+
         lstm_output, hidden = self.rnn(seq, hidden)
-        hidden_reshape = hidden[0].reshape(-1, self.bin_rnn_size * self.num_directions * self.hidden_layers)
+        hidden_reshape = hidden[0].reshape(-1, self.bin_rnn_size * self.num_directions * self.num_layers)
 
         bin_output_for_att = lstm_output.permute(1, 0, 2)
         nt_rep, bin_alpha = self.bin_attention(bin_output_for_att)
@@ -167,12 +168,11 @@ class recurrent_encoder(nn.Module):
 class att_chrome(BaseModel):
     def __init__(self, args, out):
         super(att_chrome, self).__init__()
-        self.n_nts = args.n_nts
-        self.n_bins = args.n_bins
-        self.ip_bin_size = 1
+        self.n_nts = args['n_nts']
+        self.n_bins = args['n_bins']
         self.encoder = recurrent_encoder(self.n_bins, self.n_nts, False, args)
         self.opsize = self.encoder.outputlength()
-        self.linear = nn.Linear(self.opsize * 2, out)
+        self.linear = nn.Linear(self.opsize * 3, out)
 
     def forward(self, iput):
 
@@ -183,9 +183,4 @@ class att_chrome(BaseModel):
         bin_pred = self.linear(concat)
         sigmoid_pred = torch.sigmoid(bin_pred)
         return sigmoid_pred, bin_a
-
-class AttrDict(dict):
-    def __init__(self, *args, **kwargs):
-        super(AttrDict, self).__init__(*args, **kwargs)
-        self.__dict__ = self
 
