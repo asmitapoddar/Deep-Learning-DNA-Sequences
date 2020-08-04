@@ -11,7 +11,7 @@ model_name_save_dir = 'Len40_balanced_AttLSTM[4,64,2,2]_BS32_Adam_02-08_11:31'
 with open('system_specific_params.yaml', 'r') as params_file:
     sys_params = yaml.load(params_file)
 
-BASE_ATT_PATH = sys_params['ATT_BASE_FOLDER'] + '/final/'
+BASE_ATT_PATH = sys_params['ATT_BASE_FOLDER'] + '/final_half/'
 
 def heatmap(model_name_save_dir, s, e, t):
 
@@ -26,7 +26,7 @@ def heatmap(model_name_save_dir, s, e, t):
         epoch_mean_attention = np.mean(epoch_attention_map, axis=0)
         #print(epoch_mean_attention.shape, epoch_mean_attention)
         len_attention = epoch_mean_attention.shape[0]
-        df = {'epoch': ['epoch{}'.format(epoch)]*len_attention,
+        df = {'epoch': ['{0:0=2d}'.format(epoch)]*len_attention,
               'bins': list(range(1,len_attention+1)), 'values': epoch_mean_attention}
         df_final = df_final.append(pd.DataFrame(df), ignore_index=True)
 
@@ -39,7 +39,7 @@ def heatmap(model_name_save_dir, s, e, t):
     plt.show()
 
 def plot_all_heatmaps():
-    best_epochs = [ 45, 83, 19, 35, 70, 60, 85, 44, 28]
+    best_epochs = [ 70, 70, 68, 66, 70, 44, 72, 56, 26, 94]
     dirs = os.listdir(BASE_ATT_PATH)
     #dir_paths = list(map(lambda name: os.path.join(att_path, name), dirs))
 
@@ -48,14 +48,13 @@ def plot_all_heatmaps():
     for directory in dirs:
         if not os.path.isdir(BASE_ATT_PATH + directory):
             dirs.remove(directory)
-
     assert len(dirs)==len(best_epochs), "No. of directory mismatch - should be "+str(len(best_epochs))+"; got "+str(len(dirs))
-    fig, ax = plt.subplots(len(dirs))
-    print(sorted(dirs))
+
+    fig, ax = plt.subplots(len(dirs), sharex=True)
     for i, directory in enumerate(sorted(dirs)):
 
         print('Running epoch {} for {}...'.format(best_epochs[i], directory))
-        epoch_attention_map = np.loadtxt(BASE_ATT_PATH + directory + '/train/attention_map_epoch{}'.format(best_epochs[i])
+        epoch_attention_map = np.loadtxt(BASE_ATT_PATH + directory + '/train/positive/attention_map_epoch{}'.format(best_epochs[i])
                                          , delimiter=',')
         epoch_mean_attention = np.mean(epoch_attention_map, axis=0)
         maxValue = np.max(epoch_mean_attention)
@@ -63,33 +62,32 @@ def plot_all_heatmaps():
         OldRange = maxValue - minValue
 
         epoch_mean_attention = list(map(lambda OldValue: ((OldValue - minValue)/OldRange), epoch_mean_attention))
-
         len_attention = len(epoch_mean_attention)
-        pad = [None]*(100-len_attention)  # todo for when boundary is in the middle for different lengths
+        #pad = [None]*(100-len_attention)  # for when boundary is 10 nt before end of sequence
+        #pad.extend(epoch_mean_attention)
+        pad = [None] * int(50-(len_attention)/2)
         pad.extend(epoch_mean_attention)
+        pad.extend([None] * int(50-(len_attention)/2))
 
-        ax[i].plot(x, pad, label='Prices 2008-2018', color='blue')
-        ax[i].axvline(x=90, color='red')
+        ax[i].plot(x, pad, label=str(len_attention), color='blue')
+        ax[i].axvline(x=50, color='red')  # boundary point line
         ax[i].xaxis.set_ticks(np.arange(0, 100, 10))
-        #ax.plot(years_a30, Geb_a30, label='Prices 2010-2018', color='red')
-        df[i] = pad
+        ax[i].set(ylabel=len_attention)
+        #df[i] = pad
 
-    plt.xlabel("X-axis")
-    plt.ylabel("Y-axis")
-    plt.title("A test graph")
+    plt.xlabel("DNA Sequence Length")
+    fig.text(0.008, 0.5, 'Normalised Attention Values', va='center', rotation='vertical')
+    fig.suptitle('Attention Visualization over DNA Sequence lengths')
     #df.plot(x="seq_len")
-    plt.legend()
+    fig.subplots_adjust(top=0.9, left=0.1, right=0.9, bottom=0.12)
+    ax.flatten()[-2].legend(loc='upper center', bbox_to_anchor=(0.5, -0.12), ncol=3)
+    print('Saving figure at {}..'.format(BASE_ATT_PATH + 'attention_line_plot_all.png'))
     plt.savefig(BASE_ATT_PATH + 'attention_line_plot_all.png')
     plt.show()
-
-
-def line_plot():
-    return None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Attention visulaiztion')
     parser.add_argument('-f', '--files', type=str, help='File to plot visualization for (all/file_name)')
-    parser.add_argument('-l', '--line_plot', type=bool, help='Whether to make line plot')
     parser.add_argument('-t', '--type', type=str, help='train/val')
     parser.add_argument('-s', '--start', type=int, help='Start epoch')
     parser.add_argument('-e', '--end', type=int, help='End epoch')
