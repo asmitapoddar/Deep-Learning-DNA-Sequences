@@ -32,7 +32,7 @@ class Training():
                  tb_path='', att_path = '', device='', start_epoch=0):
         self.config = config
         if device == '':
-            self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+            self.device = torch.device('cuda:4' if torch.cuda.is_available() else 'cpu')
         else:
             self.device = device
 
@@ -243,6 +243,9 @@ class Training():
         m = Metrics(self.config['TASK_TYPE'])   #m.metrics initialised to {0,0,0}
         self.metrics['train'] = m.metrics
 
+        all_attention_maps = np.array([]).reshape(0, self.config['DATA']['BATCH_SIZE'])
+        pos_attention_maps = np.array([])
+
         # FOR EACH BATCH
         for bnum, sample in tqdm(enumerate(self.trainloader)):
 
@@ -265,7 +268,13 @@ class Training():
             for key,value in metrics_for_batch.items():
                 self.metrics['train'][key] += value
             avg_train_loss += loss.item()
-            self.write_attention_maps(attention_maps, 'train', epoch)
+            self.write_attention_maps(attention_maps, 'train/all', epoch)
+
+
+            # Get Positive Label Attention Maps
+            pos_label_indices = np.where(labels==1)[0].tolist()
+            pos_attention_maps = attention_maps[:, pos_label_indices]
+            self.write_attention_maps(pos_attention_maps, 'train/positive', epoch)
 
         # EVALUATION METRICS PER EPOCH
         for measure in m.metrics:
@@ -436,9 +445,9 @@ if __name__ == "__main__":
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('_%d-%m_%H:%M')
     model_name_save_dir = string_metadata(config) + timestamp
 
-    save_dir_path = sys_params['LOGS_BASE_FOLDER'] + '/final/'+ model_name_save_dir
-    tb_path = sys_params['RUNS_BASE_FOLDER'] + '/final/' + model_name_save_dir
-    att_path = sys_params['ATT_BASE_FOLDER'] + '/final/' + model_name_save_dir
+    save_dir_path = sys_params['LOGS_BASE_FOLDER'] + '/final_half/'+ model_name_save_dir
+    tb_path = sys_params['RUNS_BASE_FOLDER'] + '/final_half/' + model_name_save_dir
+    att_path = sys_params['ATT_BASE_FOLDER'] + '/final_half/' + model_name_save_dir
 
     config['TRAINER']['save_dir'] = save_dir_path
     config['TRAINER']['tb_path'] = tb_path
