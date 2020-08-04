@@ -1,26 +1,13 @@
 import warnings
 warnings.filterwarnings("ignore")
 import argparse
-import json
-# import matplotlib
-# import matplotlib.pyplot as plt
-import math
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-from torch import cuda
-import sys, os
-import random
+import sys
 import numpy as np
-import csv
-import yaml
-from pdb import set_trace as stop
+import pandas as pd
+import copy
 from tqdm import tqdm
 import os
 import shutil
-import numpy as np
-import pandas as pd
 import time
 import datetime
 import json
@@ -31,7 +18,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from torch.autograd import Variable
 import torch.utils.tensorboard as tb
 
 from train_utils import *
@@ -42,11 +28,13 @@ curr_dir_path = str(pathlib.Path().absolute())
 data_path = curr_dir_path + "/Data/"
 
 class Training():
-
-    def __init__(self, config, att_chrome_args, model_name_save_dir,
-                 data_path='', save_dir = '', tb_path = '', att_path = '', start_epoch=0):
+    def __init__(self, config, model_name_save_dir, data_path='', save_dir='',
+                 tb_path='', att_path = '', device='', start_epoch=0):
         self.config = config
-        self.device = torch.device('cuda:8' if torch.cuda.is_available() else 'cpu')
+        if device == '':
+            self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = device
 
         self.data_path = data_path
         self.save_dir = save_dir
@@ -54,6 +42,12 @@ class Training():
         self.att_path = att_path
 
         self.start_epoch = start_epoch
+
+        encoded_seq = np.loadtxt(data_path + '/encoded_seq_sub')
+        no_timesteps = int(len(encoded_seq[0]) / 4)
+        att_chrome_args = {'n_nts': config['MODEL']['embedding_dim'], 'n_bins': no_timesteps,
+                           'bin_rnn_size': config['MODEL']['hidden_dim'], 'num_layers': config['MODEL']['hidden_layers'],
+                           'dropout': 0.5, 'bidirectional': config['MODEL']['bidirectional']}
         self.model = att_chrome(att_chrome_args, config['MODEL']['output_dim'])
 
         self.optimizer = getattr(optim, config['OPTIMIZER']['type']) \
@@ -65,6 +59,7 @@ class Training():
         self.writer = {'train': None, 'val': None}  # For TensorBoard
 
         self.metrics = {'train': {}, 'val': {}}
+        self.best_metrics = {'train': {}, 'val': {}}
         self.model_name_save_dir = model_name_save_dir
 
 
@@ -181,7 +176,7 @@ class Training():
         #Writing to be done in the first epoch
         print('Epoch in TensorBoard:', epoch)
         if epoch==0:
-            print('tb_path', tb_path)
+            print('Writing to TensorBoard path', self.tb_path)
             if os.path.isdir(self.tb_path):
                 shutil.rmtree(self.tb_path)
 
@@ -212,7 +207,7 @@ class Training():
 
         atmaps = attention_maps.cpu().detach().numpy()
         atmaps = np.transpose(atmaps)
-        print(np.transpose(atmaps).shape)
+        #print('Writing Attention Map at {}...'.format(file_path))
         f=open(file_path,'a+')
         np.savetxt(f, atmaps, delimiter=",")
         f.close()
@@ -253,8 +248,6 @@ class Training():
 
             self.model.train()
             self.model.zero_grad()
-            print('Train batch: ', bnum)
-            print('True labels', sample[1])
             raw_out, attention_maps = self.model.forward(sample[0].to(self.device))
 
             labels = sample[1].long()
@@ -268,7 +261,7 @@ class Training():
 
             # EVALUATION METRICS PER BATCH
             metrics_for_batch, pred = m.get_metrics(raw_out.detach().clone(), sample[1].detach().clone(), 'macro')  # todo: understand 'macro'
-            print('Predicted labels', pred)
+            #print('Predicted labels', pred)
             for key,value in metrics_for_batch.items():
                 self.metrics['train'][key] += value
             avg_train_loss += loss.item()
@@ -303,7 +296,6 @@ class Training():
         avg_val_loss = 0
 
         for bnum, sample in enumerate(val_dataloader):
-            print('Val batch: ', bnum)
             self.model.eval()
             raw_out, attention_maps = self.model.forward(sample[0].to(self.device))
 
@@ -331,17 +323,15 @@ class Training():
     def training_pipeline(self):
         #Todo:For loading state, self.start epoch would change
 
-        encoded_seq = np.loadtxt(self.data_path + '/encoded_seq')
+        encoded_seq = np.loadtxt(self.data_path + '/encoded_seq_sub')
         no_timesteps = int(len(encoded_seq[0]) / 4)
         encoded_seq = encoded_seq.reshape(-1, no_timesteps, 4)
         print("Input data shape: ", encoded_seq.shape)
-        y_label = np.loadtxt(self.data_path + '/y_label_start')
-
+        y_label = np.loadtxt(self.data_path + '/y_label_start_sub')
         check_output_dim(self.config, y_label)
         if self.config['VALIDATION']['apply']:
             create_train_val_split = 'create_train_val_split_' + self.config['VALIDATION']['type']
-            train_idx, val_idx = eval(create_train_val_split)(self.config['VALIDATION']['val_split'],
-                                                                 n_samples=len(encoded_seq))
+            train_idx, val_idx = eval(create_train_val_split)(self.config['VALIDATION']['val_split'], y=y_label)
 
             # Create train/validation split ------
             x_train = encoded_seq[np.ix_(train_idx)] #replace `train_idx` by `np.arange(len(encoded_seq))` to use whole dataset
@@ -359,8 +349,8 @@ class Training():
         print(x_train.shape)
 
         # For early stopping calculation ---
-        min_monitor = 99999999
-        best_train_loss, best_val_loss, best_metrics, best_epoch = None, None, None, None
+        min_monitor = 0
+        best_epoch = None
         monitor = 'val_loss' if self.config['TRAINER']['monitor'] == 'val_loss' \
             else "self.metrics['val']['"+self.config['TRAINER']['monitor']+"']"
 
@@ -400,14 +390,18 @@ class Training():
                 # write to runs folder (create a model file name, and write the various training runs in it
 
             # EARLY STOPPING
-            if eval(monitor) < min_monitor:
+            if eval(monitor) > min_monitor:
                 # Save the model
                 self.save_checkpoint(epoch=epoch, save_best=True)
                 torch.save(self.model, self.save_dir + '/best_model')
                 epochs_no_improve = 0
                 min_monitor = eval(monitor)  #todo be clear about what monitor keys can be used
-                best_metrics = self.metrics
-                best_train_loss = train_loss; best_val_loss = val_loss; best_epoch = epoch
+                self.best_metrics = copy.deepcopy(self.metrics)
+                self.best_metrics['train']['loss'] = train_loss
+                self.best_metrics['val']['loss'] = val_loss
+                self.best_metrics['train']['best_epoch'] = epoch
+                print(self.best_metrics)
+                best_epoch = epoch
             else:
                 epochs_no_improve += 1
             if epoch > 10 and epochs_no_improve == self.config['TRAINER']['early_stop']:
@@ -419,7 +413,8 @@ class Training():
         if self.config['TRAINER']["save_model_to_dir"]:
             print('Saving model at ', self.save_dir)
             torch.save(self.model, self.save_dir+'/trained_model_'+self.model_name_save_dir)
-            self.write_best_metrics(best_metrics, best_train_loss, best_val_loss, best_epoch)
+            self.write_best_metrics(self.best_metrics, self.best_metrics['train']['loss'],
+                                    self.best_metrics['val']['loss'], best_epoch)
 
         if self.config['TRAINER']['tensorboard']:
             self.writer['train'].close()
@@ -427,7 +422,7 @@ class Training():
 
 if __name__ == "__main__":
 
-    chrm =  "chrm21/"
+    chrm =  "all/"
 
     # Get config file
     with open(curr_dir_path + "/config.json", encoding='utf-8', errors='ignore') as json_data:
@@ -441,23 +436,14 @@ if __name__ == "__main__":
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('_%d-%m_%H:%M')
     model_name_save_dir = string_metadata(config) + timestamp
 
-    save_dir_path = sys_params['LOGS_BASE_FOLDER'] + '/'+ model_name_save_dir
-    tb_path = sys_params['RUNS_BASE_FOLDER'] + '/' + model_name_save_dir
-    att_path = sys_params['ATT_BASE_FOLDER'] + '/' + model_name_save_dir
+    save_dir_path = sys_params['LOGS_BASE_FOLDER'] + '/final/'+ model_name_save_dir
+    tb_path = sys_params['RUNS_BASE_FOLDER'] + '/final/' + model_name_save_dir
+    att_path = sys_params['ATT_BASE_FOLDER'] + '/final/' + model_name_save_dir
 
     config['TRAINER']['save_dir'] = save_dir_path
     config['TRAINER']['tb_path'] = tb_path
 
-    encoded_seq = np.loadtxt(final_data_path + '/encoded_seq')
-    no_timesteps = int(len(encoded_seq[0]) / 4)
-    args_dict = {'lr': config['OPTIMIZER']['lr'], 'batch_size': config['DATA']['BATCH_SIZE'],
-                 'dropout': 0.5, 'n_nts': config['MODEL']['embedding_dim'],
-                 'n_bins': no_timesteps, 'bin_rnn_size': config['MODEL']['hidden_dim'],
-                 'num_layers': config['MODEL']['hidden_layers'], 'bidirectional': config['MODEL']['bidirectional']}
-    print('args_dixt', args_dict)
-    att_chrome_args = AttrDict(args_dict)
-
-    obj = Training(config, att_chrome_args, model_name_save_dir, final_data_path, save_dir_path, tb_path, att_path)
+    obj = Training(config, model_name_save_dir, final_data_path, save_dir_path, tb_path, att_path)
     obj.training_pipeline()
 
 
