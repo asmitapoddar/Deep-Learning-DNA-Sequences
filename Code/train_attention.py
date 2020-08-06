@@ -45,10 +45,10 @@ class Training():
 
         encoded_seq = np.loadtxt(data_path + '/encoded_seq_sub')
         no_timesteps = int(len(encoded_seq[0]) / 4)
-        att_chrome_args = {'n_nts': config['MODEL']['embedding_dim'], 'n_bins': no_timesteps,
+        att_DNA_args = {'n_nts': config['MODEL']['embedding_dim'], 'n_bins': no_timesteps,
                            'bin_rnn_size': config['MODEL']['hidden_dim'], 'num_layers': config['MODEL']['hidden_layers'],
-                           'dropout': 0.5, 'bidirectional': config['MODEL']['bidirectional']}
-        self.model = att_chrome(att_chrome_args, config['MODEL']['output_dim'])
+                           'dropout': config['TRAINER']['dropout'], 'bidirectional': config['MODEL']['bidirectional']}
+        self.model = att_DNA(att_DNA_args, config['MODEL']['output_dim'])
 
         self.optimizer = getattr(optim, config['OPTIMIZER']['type']) \
             (self.model.parameters(), lr=config['OPTIMIZER']['lr'], weight_decay=config['OPTIMIZER']['weight_decay'])
@@ -243,9 +243,6 @@ class Training():
         m = Metrics(self.config['TASK_TYPE'])   #m.metrics initialised to {0,0,0}
         self.metrics['train'] = m.metrics
 
-        all_attention_maps = np.array([]).reshape(0, self.config['DATA']['BATCH_SIZE'])
-        pos_attention_maps = np.array([])
-
         # FOR EACH BATCH
         for bnum, sample in tqdm(enumerate(self.trainloader)):
 
@@ -269,7 +266,6 @@ class Training():
                 self.metrics['train'][key] += value
             avg_train_loss += loss.item()
             self.write_attention_maps(attention_maps, 'train/all', epoch)
-
 
             # Get Positive Label Attention Maps
             pos_label_indices = np.where(labels==1)[0].tolist()
@@ -320,6 +316,11 @@ class Training():
                 self.metrics['val'][key] += value
             avg_val_loss += loss.item()
             self.write_attention_maps(attention_maps, 'val', epoch)
+
+            # Get Positive Label Attention Maps
+            pos_label_indices = np.where(labels == 1)[0].tolist()
+            pos_attention_maps = attention_maps[:, pos_label_indices]
+            self.write_attention_maps(pos_attention_maps, 'val/positive', epoch)
 
         for measure in m.metrics:
             self.metrics['val'][measure] /= (bnum+1)

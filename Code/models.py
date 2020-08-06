@@ -165,9 +165,9 @@ class recurrent_encoder(nn.Module):
         nt_rep, bin_alpha = self.bin_attention(bin_output_for_att)
         return nt_rep, hidden_reshape, bin_alpha
 
-class att_chrome(BaseModel):
+class att_DNA(BaseModel):
     def __init__(self, args, out):
-        super(att_chrome, self).__init__()
+        super(att_DNA, self).__init__()
         self.n_nts = args['n_nts']
         self.n_bins = args['n_bins']
         self.encoder = recurrent_encoder(self.n_bins, self.n_nts, False, args)
