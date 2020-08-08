@@ -123,8 +123,8 @@ class GenerateDataset():
             print('Writing Data to {} ...'.format(self.WRITE_TO_FILE_PATH))
             if not os.path.exists(self.WRITE_TO_FILE_PATH):
                 os.makedirs(self.WRITE_TO_FILE_PATH)
-            write_to_file(training_y, self.WRITE_TO_FILE_PATH + '/y_label_'+self.EXON_BOUNDARY)
-            write_to_file(training_x, self.WRITE_TO_FILE_PATH + '/dna_seq_'+self.EXON_BOUNDARY)
+            write_to_file(training_y, self.WRITE_TO_FILE_PATH + '/y_label')
+            write_to_file(training_x, self.WRITE_TO_FILE_PATH + '/dna_seq')
 
         if self.DATA_LOG:
             self.write_data_log(training_x, len_boundary, len_exon, len_intron)
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     MIN_INTRON_OFFSET = 2
     MIN_EXON_OFFSET = 80
     OFFSET_RANGE = [MIN_INTRON_OFFSET, MAX_LENGTH - MIN_EXON_OFFSET]
-    EXON_BOUNDARY = 'start'  # or 'end'
+    EXON_BOUNDARY = 'end'  # or 'end'
     DATASET_TYPE = 'boundaryCertainPoint_orNot_2classification'
     SEQ_TYPE = 'cds'  # 'cds'/'exons'
     #NO_OF_GENES = 3
@@ -202,7 +202,8 @@ if __name__ == "__main__":
         assert NO_OFFSETS_PER_EXON == 1
         assert OFFSET_RANGE[0] == OFFSET_RANGE[1]
 
-    WRITE_TO_FILE_PATH = sys_params['DATA_WRITE_FOLDER'] + '/chrm21' + '/' + str(DATASET_TYPE) + '/' + SEQ_TYPE + '_' + \
+    WRITE_TO_FILE_PATH = sys_params['DATA_WRITE_FOLDER'] + '/all' + '/' + str(DATASET_TYPE) + '/' + \
+                         str(EXON_BOUNDARY) + '/' +SEQ_TYPE + '_' + \
                          str(EXON_BOUNDARY) + '_n' + str(NO_OF_GENES) + '_l' + str(MAX_LENGTH) + \
                          '_i' + str(OFFSET_RANGE[0]) + '_e' + str(MIN_EXON_OFFSET)
 

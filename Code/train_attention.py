@@ -337,7 +337,7 @@ class Training():
         no_timesteps = int(len(encoded_seq[0]) / 4)
         encoded_seq = encoded_seq.reshape(-1, no_timesteps, 4)
         print("Input data shape: ", encoded_seq.shape)
-        y_label = np.loadtxt(self.data_path + '/y_label_start_sub')
+        y_label = np.loadtxt(self.data_path + '/y_label_sub')
         check_output_dim(self.config, y_label)
         if self.config['VALIDATION']['apply']:
             create_train_val_split = 'create_train_val_split_' + self.config['VALIDATION']['type']

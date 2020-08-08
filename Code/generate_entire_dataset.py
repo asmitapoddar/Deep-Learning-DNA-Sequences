@@ -12,14 +12,15 @@ from generate_dataset_types import *
 
 curr_dir_path = str(pathlib.Path().absolute())
 
-MAX_LENGTH = 100
+MAX_LENGTH = 60
 NO_OFFSETS_PER_EXON = 5
-MIN_INTRON_OFFSET = 2
-MIN_EXON_OFFSET = 80
+MIN_INTRON_OFFSET = 8
+MIN_EXON_OFFSET = 10
 OFFSET_RANGE = [MIN_INTRON_OFFSET, MAX_LENGTH - MIN_EXON_OFFSET]
-EXON_BOUNDARY = 'start'  # or 'end'
+EXON_BOUNDARY = 'end'  # or 'end'
 DATASET_TYPE = 'boundaryCertainPoint_orNot_2classification'
 SEQ_TYPE = 'cds'  # 'cds'/'exons'
+chrm = 'all'
 
 WRITE_DATA_TO_FILE = True
 
@@ -55,11 +56,12 @@ for i in range(1,23):  # full chromosome range = [1,23]
 
     if DATASET_TYPE == 'boundaryCertainPoint_orNot_2classification':
         NO_OFFSETS_PER_EXON = 1
-        OFFSET_RANGE = [60,60]   #Note: Change boundary point here
+        OFFSET_RANGE = [30,30]   #Note: Change boundary point here
         assert NO_OFFSETS_PER_EXON == 1
         assert OFFSET_RANGE[0] == OFFSET_RANGE[1]
 
-    WRITE_TO_FILE_PATH = sys_params['DATA_WRITE_FOLDER'] + '/all/' + str(DATASET_TYPE) + '/'+ str(OFFSET_RANGE[0]) +\
+    WRITE_TO_FILE_PATH = sys_params['DATA_WRITE_FOLDER'] + '/' + chrm +'/' + str(DATASET_TYPE) + '/'+ \
+                         str(EXON_BOUNDARY) + '/' + str(MAX_LENGTH) + \
                          '/chrm{}_'.format(i) + SEQ_TYPE + '_' + \
                          str(EXON_BOUNDARY) + '_n' + str(NO_OF_GENES) + '_l' + str(MAX_LENGTH) + \
                          '_i' + str(OFFSET_RANGE[0]) + '_e' + str(MIN_EXON_OFFSET)

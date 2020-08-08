@@ -39,9 +39,13 @@ def encode(seq):
 
     return encoded_seq
 
-def encode_seq(write_path):
-    encoded_f = open(write_path+'/encoded_seq', 'w')
-    seq_file=open(write_path+'/dna_seq_start').read().splitlines()
+def encode_seq(write_path, in_path=''):
+    if in_path=='sub':
+        encoded_f = open(write_path+'/encoded_seq_sub', 'w')
+        seq_file = open(write_path + '/dna_seq_sub').read().splitlines()
+    else:
+        encoded_f = open(write_path + '/encoded_seq', 'w')
+        seq_file = open(write_path+'/dna_seq').read().splitlines()
 
     print('Encoding dna seq...')
     for line in tqdm.tqdm(seq_file):
@@ -56,7 +60,8 @@ def encode_seq(write_path):
 
 if __name__ =='__main__':
     parser = argparse.ArgumentParser(description='Create one-hot encoding for DNA sequence')
+    parser.add_argument('--in_path', type=str, help='input_path for encoded dna seq')
     parser.add_argument('--write_path', type=str, help='write_path for encoded dna seq')
     args = parser.parse_args()
 
-    encode_seq(write_path=args.write_path)
+    encode_seq(write_path=args.write_path, in_path = args.in_path)
