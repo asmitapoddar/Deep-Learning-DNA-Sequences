@@ -11,11 +11,13 @@ done
 
 python3 generate_entire_dataset.py
 #sudo su
-#for f in */dna_seq_start; do (cat "${f}"; echo) >> dna_seq_start; done
-#for f in */y_label_start; do (cat "${f}"; echo) >> y_label_start; done
-#wc -l dna_seq_start  # 233629
-#wc -l y_label_start
+#for f in */dna_seq; do (cat "${f}"; echo) >> dna_seq; done
+#for f in */y_label; do (cat "${f}"; echo) >> y_label; done
+#wc -l dna_seq  # 233629
+#wc -l y_label
 
 sudo python3 meta_info_stitch.py --write_path '/mnt/sdc/asmita/Code/Data/all/boundaryCertainPoint_orNot_2classification/60'
 sudo python3 encode.py --write_path '/mnt/sdc/asmita/Code/Data/all/boundaryCertainPoint_orNot_2classification/60'
 
+sudo python3 subset.py -i '/mnt/sdc/asmita/Code/Data/all/boundaryCertainPoint_orNot_2classification/70/' -n 50000
+sudo python3 encode.py --write_path '/mnt/sdc/asmita/Code/Data/all/boundaryCertainPoint_orNot_2classification/70' --in_path 'sub'

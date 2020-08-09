@@ -12,7 +12,7 @@ from generate_dataset_types import *
 
 curr_dir_path = str(pathlib.Path().absolute())
 
-MAX_LENGTH = 60
+MAX_LENGTH = 100
 NO_OFFSETS_PER_EXON = 5
 MIN_INTRON_OFFSET = 8
 MIN_EXON_OFFSET = 10
@@ -35,7 +35,7 @@ chrom_ignore = [3, 12]
 f = open(sys_params['DATA_WRITE_FOLDER']+'/all/raw_data/genes_ignore.txt', "r")
 genes_ignore = [line.strip() for line in f]
 
-for i in range(11,23):  # full chromosome range = [1,23]
+for i in range(1,23):  # full chromosome range = [1,23]
     if i in chrom_ignore:
         continue
 
@@ -56,7 +56,7 @@ for i in range(11,23):  # full chromosome range = [1,23]
 
     if DATASET_TYPE == 'boundaryCertainPoint_orNot_2classification':
         NO_OFFSETS_PER_EXON = 1
-        OFFSET_RANGE = [30,30]   #Note: Change boundary point here
+        OFFSET_RANGE = [50,50]   #Note: Change boundary point here
         assert NO_OFFSETS_PER_EXON == 1
         assert OFFSET_RANGE[0] == OFFSET_RANGE[1]
 

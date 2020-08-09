@@ -291,9 +291,7 @@ def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene
     training_set_x = []
     training_set_y = []
     gene_sequence = gene['gene_sequence']
-    aaaa = len(gene_sequence)
     gene_bounds = gene['gene_bounds']
-    a=exon_boundary_intervals_final
 
     for (exon_interval, exon_boundary) in zip(exon_boundary_intervals_final, exon_boundary_final):
         seq = get_gene_seq(gene_sequence[exon_interval.lower - gene_bounds[0]:exon_interval.upper - gene_bounds[0] + 1],
