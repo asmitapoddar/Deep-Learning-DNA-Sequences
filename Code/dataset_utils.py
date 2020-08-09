@@ -17,15 +17,19 @@ random.seed(123)
 
 #todo: create class with attributes and funcs, so that do not need to pass the attributes to individual funcs
 
-def convert_list_to_interval(data):
+def convert_list_to_interval(data, type='closed'):
     '''
     Convert a list of lists to a list of intervals
     :param data: list of lists
     :return: list of intervals
     '''
     res = []
-    for exon in data:
-        res.append(P.closed(exon[0], exon[1]))
+    if type=='closed':
+        for item in data:
+            res.append(P.closed(item[0], item[1]))
+    if type=='open':
+        for item in data:
+            res.append(P.open(item[0], item[1]))
     return res
 
 def create_boundary_intervals(data, strand, side, MAX_LENGTH, NO_OFFSETS_PER_EXON, OFFSET_RANGE):
@@ -287,12 +291,14 @@ def create_training_set(exon_boundary_intervals_final, exon_boundary_final, gene
     training_set_x = []
     training_set_y = []
     gene_sequence = gene['gene_sequence']
+    aaaa = len(gene_sequence)
     gene_bounds = gene['gene_bounds']
+    a=exon_boundary_intervals_final
 
     for (exon_interval, exon_boundary) in zip(exon_boundary_intervals_final, exon_boundary_final):
         seq = get_gene_seq(gene_sequence[exon_interval.lower - gene_bounds[0]:exon_interval.upper - gene_bounds[0] + 1],
                            gene['gene_strand'])  # end index not included during offset: hence +1 during offset
-        assert len(seq) == MAX_LENGTH, "ill-formed sequence: " + seq
+        assert len(seq) == MAX_LENGTH, "ill-formed sequence: " + seq + ' ' + str(len(seq))
         training_set_x.append(seq)
         training_set_y.append(exon_boundary)
 

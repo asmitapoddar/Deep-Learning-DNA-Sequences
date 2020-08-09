@@ -53,7 +53,7 @@ class GenerateDataset():
 
         # print(len(data)) #875
         nonoverlapping_gene_intervals = remove_overlapping_genes(data)
-        nonoverlapping_gene_intervals = convert_list_to_interval(nonoverlapping_gene_intervals)
+        nonoverlapping_gene_intervals = convert_list_to_interval(nonoverlapping_gene_intervals, 'open')
         print('non-overlapping genes ', len(nonoverlapping_gene_intervals), nonoverlapping_gene_intervals)  # 821
 
         # Iterating through all genes of the chromosome
