@@ -12,13 +12,8 @@ import torch
 import torch.nn as nn
 import torch.utils.tensorboard as tb
 from torch.utils.data import Dataset, DataLoader
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 DATASET_TYPE = 'classification'
-
-def load_model_class(model_class, config):
-
-    return model
 
 def test(encoded_seq, y_label, model_path, model_class, config):
     '''
@@ -79,6 +74,6 @@ if __name__ == "__main__":
     no_timesteps = int(len(encoded_seq[0]) / 4)
     encoded_seq = encoded_seq.reshape(-1, no_timesteps, 4)
     print("Input data shape: ", encoded_seq.shape)
-    y_label = np.loadtxt(data_path + '/y_label_start')
+    y_label = np.loadtxt(data_path + '/y_label')
 
     metrics = test(encoded_seq, y_label, MODEL_NAME)

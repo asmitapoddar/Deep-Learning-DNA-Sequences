@@ -11,13 +11,14 @@ model_name_save_dir = 'Len40_balanced_AttLSTM[4,64,2,2]_BS32_Adam_02-08_11:31'
 with open('system_specific_params.yaml', 'r') as params_file:
     sys_params = yaml.load(params_file)
 
-BASE_ATT_PATH = sys_params['ATT_BASE_FOLDER'] + '/final_half/'
+BASE_ATT_PATH = sys_params['ATT_BASE_FOLDER'] + '/end/'
 
 def heatmap(model_name_save_dir, s, e, t):
 
     att_path = BASE_ATT_PATH + model_name_save_dir
     train_attention_path = att_path + '/' + t
     df_final = pd.DataFrame(columns=['epoch', 'bins', 'values'])
+    seaborn.set(font_scale=0.55)
 
     for epoch in range(s,e+1):
         print('Running epoch {}...'.format(epoch))
@@ -31,20 +32,21 @@ def heatmap(model_name_save_dir, s, e, t):
         df_final = df_final.append(pd.DataFrame(df), ignore_index=True)
 
     heatmap_data = pd.pivot_table(df_final, values='values', index=['epoch'], columns='bins')
-    #sb.set(font_scale=2)
     seaborn.heatmap(heatmap_data, cmap="YlGnBu", xticklabels=True, yticklabels=True, annot=False)
+    #hm.ax_heatmap.set_xticklabels(hm.ax_heatmap.get_xmajorticklabels(), fontsize = 16)
     #sb.palplot(sb.diverging_palette(200, 100, n=11))
     print('Saving heatmap at '+att_path+'/'+t+'_attention_heatmap.png')
     plt.savefig(att_path+'/'+t+'_attention_heatmap.png')
     plt.show()
 
 def plot_all_heatmaps():
-    best_epochs = [ 70, 70, 68, 66, 70, 44, 72, 56, 26, 94]
+    best_epochs = [ 50, 70, 68, 70, 44, 50, 35, 82, 99, 74]
     dirs = os.listdir(BASE_ATT_PATH)
-    #dir_paths = list(map(lambda name: os.path.join(att_path, name), dirs))
 
     x = list(range(1,101))
     df = pd.DataFrame({"seq_len": x})
+
+    #Note: Make sure the directories are listed alphabetically in the order of best_epochs array
     for directory in dirs:
         if not os.path.isdir(BASE_ATT_PATH + directory):
             dirs.remove(directory)
