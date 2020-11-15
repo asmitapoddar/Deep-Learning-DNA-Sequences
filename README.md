@@ -19,8 +19,8 @@ This is the code base for the dissertation: 'DeepDeCode: Deep Learning for Ident
 
 ## Features
 - `.json` file for convenient parameter tuning
-- `.yml` file for path specification to data directory, model directory and visualization(Tensorboard and Attention) directory
-- Checkpoint saving and resuming.
+- `.yml` file for base path specification to data directory, model directory and visualization(Tensorboard and Attention) directory
+- Writing and visulaization of model training logs using Tensorboard
 
 ## Data
 
@@ -39,12 +39,11 @@ The aim of pre-processing is to extract the relevant parts of the genome to get 
 
 ## Dataset Creation
 The final dataset for the experiments were created after pre-processing the data. Standard data format used among all my datasets:  
-**Input**: The input to the models consist of a DNA sequence of a particluar length, _l_. A single encoded training sample has the dimensions [_l, 4_]:
-
+**Input**: The input to the models consist of a DNA sequence of a particluar length, _L_. A single encoded training sample has the dimensions [_L, 4_].  
 **Label**: The label (output) of the model depends on the Experiment Type. The label could be:  
-- 0 (Contains a splice junction) / 1 (Does not contain a splice junction) : for binary classification
+- 0 (Contains a splice junction) / 1 (Does not contain a splice junction) : for 2-class classification
 - 0 (containing splice junction) / 1 (exon) / 2 (intron) : for 3-class classification
-- Any number \[1,l\] : for multi-class classification
+- Any number \[1,_L_\] : for multi-class classification
 
 ### Usage  
 - [generate_dataset_types.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/generate_dataset_types.py): Create the datasets tailered for the three experiments (Experiment I: boundaryCertainPoint_orNot_2classification, Experiment II: boundary_exon_intron_3classification and Experiment III: find_boundary_Nclassification).   
@@ -54,78 +53,90 @@ The final dataset for the experiments were created after pre-processing the data
 - [process.sh](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/process.sh): Shell script written to automate the process of creating the dataset and encoding it for all the chromosomes over the full genome. The pipeline consists of creating the text and a JSON files for the indivisual chromosomes, the DNA sequences along with the corresponding labels, and then creating a one-hot encoding for the data.  
 - [meta_info_stitch.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/meta_info_stitch.py): To obtain the meta-information about our dataset and writing it to file.  
 
-## Model Training 
+## Model Training  
+The model architectures that we implemented are:
+- Convolutional Neural Network (CNN). 
+- Long Short-Term Memory Network (LSTM). 
+- DeepDeCode. 
 
 ### Usage  
+
+- [train.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/train.py): Generalised training pipeline for classification or regression. The training pipeline consists of passing the hyper-parameters for the model, training for each batch, saving the trained models, writing to Tensorboard for visualization of the training process, writing training metrics (loss, performance metrics) to file.  
+- [train_utils.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/train_utils.py): Contains utility function for training the deep learning models.  
+- [train_attention.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/train_attentiom.py): Training pipeline for the DeepDeCode model, which uses attention. 
+- [train_Kfold.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/train_Kfold.py): Training with K-fold cross validation to prevent model over-fitting. 
+- [models.py](): Contains the various model architectures used for our experiment. The architectures implemented are CNN, LSTM and DeepDecode. 
+- [test_model.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/test_model.py):To evaluate the trained models using the test set for classification tasks. 
+- [test_regression.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/test_regression.py): To evaluate the trained models using the test set for classification tasks
+- [hyperparameter_search.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/hyperparameter_search.py): To perform hyper-parameter search for the specified hyper-paramters for the various models over a search space. the results for each model are stored in a CSV file.  
+- [metrics.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/metrics.py): Calculates the evaluation metrics for our models.
 
 #### Config file format  
 
 Config files are in `.json` format:
 ```
 {
-    "EXP_NAME": "Len100",    // training session name
-    "TASK_TYPE": "classification",    // classification/regression
-    "DATASET_TYPE": "boundaryCertainPoint_orNot_2classification",    // classification/regression
-    "MODEL_NAME": "AttLSTM",
-    "LOSS": "CrossEntropyLoss",
+    "EXP_NAME": "Len100",                                            // training session name
+    "TASK_TYPE": "classification",                                   // classification/regression
+    "DATASET_TYPE": "boundaryCertainPoint_orNot_2classification",    // type of dataset being used for experiment
+    "MODEL_NAME": "AttLSTM",                                         // model architecture
+    "LOSS": "CrossEntropyLoss",                                      // loss
     "DATA": {
-        "DATALOADER": "SequenceDataLoader",
-        "DATA_DIR": "/end/100",
-        "BATCH_SIZE": 32,
-        "SHUFFLE": true,
-        "NUM_WORKERS": 2
+        "DATALOADER": "SequenceDataLoader",           // selecting data loader
+        "DATA_DIR": "/end/100",                       // dataset path
+        "BATCH_SIZE": 32,                             // batch size
+        "SHUFFLE": true,                              // shuffle training data before splitting
+        "NUM_WORKERS": 2                              // number of cpu processes to be used for data loading
     },
     "VALIDATION": {
-        "apply": true,
-        "type": "balanced",
-        "val_split": 0.1,
-        "cross_val": 10
+        "apply": true,                    // whether to have a validation split (true/ false)
+        "type": "balanced",               // type of validation split (balanced/mixed/separate)
+        "val_split": 0.1,                 // size of validation dataset - float (portion of samples)
+        "cross_val": 10                   // no. of folds for K-fold cross validation
     },
-    "MODEL": {
-        "embedding_dim": 4,
+    "MODEL": {                            // Hyper-parameters for LSTM-based model
+        "embedding_dim": 4,                
         "hidden_dim": 32,
         "hidden_layers": 2,
         "output_dim": 2,
         "bidirectional": true
     },
     "OPTIMIZER": {
-        "type": "Adam",
-        "lr": 0.1,
-        "weight_decay": 0.0,
-        "amsgrad": true
+        "type": "Adam",                   // optimizer type
+        "lr": 0.1,                        // learning rate
+        "weight_decay": 0.0,              // weight decay
+        "amsgrad": true            
     },
     "LR_SCHEDULER": {
-        "apply": true,
-        "type": "StepLR",
-        "step_size": 20,
-        "gamma": 0.05
+        "apply": true,            // whether to apply learning rate scheduling (true/ false)
+        "type": "StepLR",         //type of LR scheduling.  More options available at https://pytorch.org/docs/stable/optim.html
+        "step_size": 20,          // period of learning rate deca
+        "gamma": 0.05             // multiplicative factor of learning rate decay
     },
     "TRAINER": {
-        "epochs": 110,
-        "dropout": 0.1,
-        "save_all_model_to_dir": false,
-        "save_model_to_dir": true,
-        "save_dir": "/all/att_start/",
-        "save_period": 250,
-        "monitor": "acc",
-        "early_stop": 50,
-        "tensorboard": true,
-        "tb_path": "/mnt/sdc/asmita/Code/runs/chr21/end_half/Len30_balanced_SimpleLSTM[4,64,2,2]_BS8_Adam_25-08_15:24"
+        "epochs": 110,                               // number of training epochs
+        "dropout": 0.1,                              // dropout
+        "save_all_model_to_dir": false,              // whether to save models of every epoch (true/false)
+        "save_model_to_dir": true,                   // whether to save any model to directory (true/false)
+        "save_dir": "/all/att_start/",               // path for saving model checkpoints: './saved_models/all/att_start'
+        "save_period": 250,                          // save checkpoints every save_period epochs
+        "monitor": "acc",                            // metric to monitor for early stopping
+        "early_stop": 50,                            // number of epochs to wait before early stop. Set 0 to disable
+        "tensorboard": true,                         // enable tensorboard visualizations
+        "tb_path": "chr21/end_half/Len30_model"      // path for tensoroard visualizations: './runs/chr21/end_half/Len30_model'
     }
 }
 ```
-- [test_model.py]():
-- [test_regression.py]():
-- [train_attention.py]():
-- [train_Kfold.py]():
-- [train_utils.py]():
-- [train.py]():
-- [hyperparameter_search.py](): 
-- [models.py]():
-- [metrics.py]():
+This file is used during model training. The values in the required fields can be changed to set paths or parameters.  
 
-
-Tensorboard Visualization
+#### Tensorboard Visualization
+1. **Run Training**: Make sure that tensorboard option in the `config` file is turned on: `"tensorboard" : true`.  
+2. **Open Tensorboard server**: In the command line, type `tensorboard --logdir runs/log/ --port 6006` at the project root, then server will open at `http://localhost:6006`. If you want to run the tensorboard visualizations from a remote server on your local machine using SSH, run the following on your local computer:
+```
+ssh -N -f -L localhost:16006:localhost:6006 <remote host username>@<remote host IP>
+tensorboard --logdir runs --port 6006
+```
+The server will open at: `http://localhost:6006`  
 
 ## Visualizations  
 
