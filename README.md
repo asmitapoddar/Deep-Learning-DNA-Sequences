@@ -25,7 +25,7 @@ This is the code base for the dissertation: 'DeepDeCode: Deep Learning for Ident
 ## Data
 
 The human DNA sequence data from the Dec. 2013 assembly of the human genome ([hg38, GRCh38 Genome Reference Consortium Human Reference 38](http://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/)) was obtained from the [UCSC Genome Browser](https://genome.ucsc.edu/) [80] in the FASTA format (a text-based format for representing nucleotide sequences, in which nucleotides are represented
-using single-letter codes) for each chromosome.
+using single-letter codes) for each chromosome.   
 We obtained the location of exons within the DNA sequences from the latest release ([Release 34, GRCh38.p13](https://www.gencodegenes.org/human/)) of GENCODE annotations [81] in the Gene Transfer Format (GTF), which contains comprehensive gene annotations on the reference chromosomes in the human genome.
 
 ## Pre-processing Steps
@@ -52,6 +52,7 @@ The final dataset for the experiments were created after pre-processing the data
 [encode.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/encode.py): Creates the one-hot encoding of the DNA sequences.  
 - [process.sh](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/process.sh): Shell script written to automate the process of creating the dataset and encoding it for all the chromosomes over the full genome. The pipeline consists of creating the text and a JSON files for the indivisual chromosomes, the DNA sequences along with the corresponding labels, and then creating a one-hot encoding for the data.  
 - [meta_info_stitch.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/meta_info_stitch.py): To obtain the meta-information about our dataset and writing it to file.  
+- [subset.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/subset.py): Create a random subset of a specified number of samples from a larger dataset. 
 
 ## Model Training  
 The model architectures that we implemented are:
@@ -138,11 +139,14 @@ tensorboard --logdir runs --port 6006
 ```
 The server will open at: `http://localhost:6006`  
 
-## Visualizations  
-
+## Visualizations 
+Inference of biologically relevant information learnt by models in the genomic domain is a challenge. We identify sequence motifs in the genome that code for exon location. We explore various intrinsic and extrinsic visualization techniques to find the important sequence motifs informing the the existence of acceptor sites or donor sites.  
+     
 ### Usage  
    
-- [perturbation_test.py]():
-subset.py
-- [visualize_attention.py]():
-- [graphs.py](): Code to generate the graphs (distribution of exon position for Experiment III, variation of model accuracy for over length of the DNA sequence for Experiment I.
+- [perturbation_test.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/perturbation_test.py): To perform the sequence pertubation test using the trained models. Various lengths of perturbations can be performed over the DNA sequences.  
+- [visualize_attention.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/visualize_attention.py): Visualize the attention maps.  
+- [graphs.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/graphs.py): Code to generate the graphs (distribution of exon position for Experiment III, variation of model accuracy for over length of the DNA sequence for Experiment I.
+
+## License
+This project is licensed under the MIT License. See LICENSE for more details. 
