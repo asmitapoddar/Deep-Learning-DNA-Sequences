@@ -20,7 +20,8 @@ This is the code base for the dissertation: 'DeepDeCode: Deep Learning for Ident
 ## Features
 - `.json` file for convenient parameter tuning
 - `.yml` file for base path specification to data directory, model directory and visualization(Tensorboard and Attention) directory
-- Writing and visulaization of model training logs using Tensorboard
+- Writing and visulaization of model training logs using Tensorboard  
+- Using Multiple GPUs for hyper-parameter search. 
 
 ## Data
 
@@ -31,11 +32,17 @@ We obtained the location of exons within the DNA sequences from the latest relea
 ## Pre-processing Steps
 The aim of pre-processing is to extract the relevant parts of the genome to get high quality data for our models. The following pre-processing steps were performed to create the datasets:
 
-### Usage   
+### Scripts   
 - [read_annotations.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/read_annotations.py): Read annotation file for human genome sequence GRCh38 and get annotations for specified chromosome
 - [create_json_cds.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/create_json_cds.py): To create a JSON file (containing the keys: `gene_id`, `gene_sequence`, `gene_strand`, `no_of_transcript`, `transcript_id`, `transcript_range`, `no_of_exons`, `exon_ranges`) containing infomation about the _Coding DNA Sequences (CDS)_ sequences from the GENCODE annotation file.    
 - [create_json.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/create_json.py): To create a JSON file containing the same attributes as above for _exon sequences_ from the GENCODE annotation file.  
 - [dataset_utils.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/dataset_utils.py): Contains the utility functions for creating the positive and negative sequences for our dataset.   
+- [process.sh](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/process.sh): Shell script written to automate the process of creating the dataset and encoding it for all the chromosomes over the full genome. The pipeline consists of creating the text and a JSON files for the indivisual chromosomes, the DNA sequences along with the corresponding labels, and then creating a one-hot encoding for the data.  
+
+### Usage
+1. Download the GTF and FASTA files for each of the Chromosomes into the `Data` folder.  
+2. Run `python3 create_json_cds.py --no <chromosome_no>` to extract relevant information in the JSON format.
+3. Run `./process.sh` to get DNA sequences in the valid regions from the entire genome.
 
 ## Dataset Creation
 The final dataset for the experiments were created after pre-processing the data. Standard data format used among all my datasets:  
@@ -45,14 +52,17 @@ The final dataset for the experiments were created after pre-processing the data
 - 0 (containing splice junction) / 1 (exon) / 2 (intron) : for 3-class classification
 - Any number \[1,_L_\] : for multi-class classification
 
-### Usage  
+### Scripts  
 - [generate_dataset_types.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/generate_dataset_types.py): Create the datasets tailered for the three experiments (Experiment I: boundaryCertainPoint_orNot_2classification, Experiment II: boundary_exon_intron_3classification and Experiment III: find_boundary_Nclassification).   
 - [generate_dataset.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/generate_dataset.py): Containing the entire pipeline to generate the required type of dataset from the created JSON file for a particular chromosome.  
 - [generate_entire_dataset.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/generate_entire_dataset.py): To generate the required type of dataset for the entire genome by calling `generate_dataset.py` for every chromosome.    
-[encode.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/encode.py): Creates the one-hot encoding of the DNA sequences.  
-- [process.sh](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/process.sh): Shell script written to automate the process of creating the dataset and encoding it for all the chromosomes over the full genome. The pipeline consists of creating the text and a JSON files for the indivisual chromosomes, the DNA sequences along with the corresponding labels, and then creating a one-hot encoding for the data.  
+[encode.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/encode.py): Creates the one-hot encoding of the DNA sequences.    
 - [meta_info_stitch.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/meta_info_stitch.py): To obtain the meta-information about our dataset and writing it to file.  
 - [subset.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/subset.py): Create a random subset of a specified number of samples from a larger dataset. 
+
+### Usage
+1. Run `python3 generate_dataset.py` to get single chromosome dataset or `python3 generate_entire_dataset.py` to get multiple chromosome dataset for specified Experiment type.  
+2. Run `python3 subset.py -i <file path of dataset> -n <no. of samples in subset>` to create a subset of the dataset (typically used for faster training to create a POC).
 
 ## Model Training  
 The model architectures that we implemented are:
@@ -60,17 +70,21 @@ The model architectures that we implemented are:
 - Long Short-Term Memory Network (LSTM). 
 - DeepDeCode. 
 
-### Usage  
-
+### Scripts
 - [train.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/train.py): Generalised training pipeline for classification or regression. The training pipeline consists of passing the hyper-parameters for the model, training for each batch, saving the trained models, writing to Tensorboard for visualization of the training process, writing training metrics (loss, performance metrics) to file.  
 - [train_utils.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/train_utils.py): Contains utility function for training the deep learning models.  
 - [train_attention.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/train_attentiom.py): Training pipeline for the DeepDeCode model, which uses attention. 
 - [train_Kfold.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/train_Kfold.py): Training with K-fold cross validation to prevent model over-fitting. 
-- [models.py](): Contains the various model architectures used for our experiment. The architectures implemented are CNN, LSTM and DeepDecode. 
+- [models.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/models.py): Contains the various model architectures used for our experiment. The architectures implemented are CNN, LSTM and DeepDecode. 
 - [test_model.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/test_model.py):To evaluate the trained models using the test set for classification tasks. 
 - [test_regression.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/test_regression.py): To evaluate the trained models using the test set for classification tasks
 - [hyperparameter_search.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/hyperparameter_search.py): To perform hyper-parameter search for the specified hyper-paramters for the various models over a search space. the results for each model are stored in a CSV file.  
 - [metrics.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/metrics.py): Calculates the evaluation metrics for our models.
+
+### Usage
+1. Run `python3 train.py` or `python3 train_attention.py` to train the model without and with attention respectively.
+2. Run `python3 hyperparameter_search.py --FILE_NAME <file name to write metrics> --ATTENTION True --devices <GPU numbers to use>` for hyper-parameter searching for the models. For LSTM models, you can either turn the attention mechanism on or off by specifying the value for the `--ATTENTON` parameter.
+3. Get test metrics for a model by running `python3 test_model.py`. 
 
 #### Config file format  
 
@@ -142,11 +156,16 @@ The server will open at: `http://localhost:6006`
 ## Visualizations 
 Inference of biologically relevant information learnt by models in the genomic domain is a challenge. We identify sequence motifs in the genome that code for exon location. We explore various intrinsic and extrinsic visualization techniques to find the important sequence motifs informing the the existence of acceptor sites or donor sites.  
      
-### Usage  
+### Scripts 
    
 - [perturbation_test.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/perturbation_test.py): To perform the sequence pertubation test using the trained models. Various lengths of perturbations can be performed over the DNA sequences.  
 - [visualize_attention.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/visualize_attention.py): Visualize the attention maps.  
 - [graphs.py](https://github.com/asmitapoddar/NN-Genomics/blob/master/Code/graphs.py): Code to generate the graphs (distribution of exon position for Experiment III, variation of model accuracy for over length of the DNA sequence for Experiment I.
+    
+### Usage
+1. Run `python3 visualize_attention.py -f <file to plot visualization for (all/file_name)> -t <train/val folder> -s <start epoch> -e <end epoch>` to get visualizations from attention maps.  
+2. Run `python3 perturbation_test.py` for perturbation tests. 
+3. Get various graphs by running `python3 graphs.py`
 
 ## License
 This project is licensed under the MIT License. See LICENSE for more details. 
